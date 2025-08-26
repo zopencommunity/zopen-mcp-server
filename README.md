@@ -10,7 +10,7 @@
 
 ## Prerequisites
 
-- Go 1.18 or later
+- Go 1.23 or later
 - An environment with `zopen` installed (either locally or on a remote z/OS system)
 
 ## Build and Run
