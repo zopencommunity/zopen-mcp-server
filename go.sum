@@ -1,0 +1,6 @@
+github.com/google/jsonschema-go v0.2.0 h1:Uh19091iHC56//WOsAd1oRg6yy1P9BpSvpjOL6RcjLQ=
+github.com/google/jsonschema-go v0.2.0/go.mod h1:r5quNTdLOYEz95Ru18zA0ydNbBuYoo9tgaYcxEYhJVE=
+github.com/modelcontextprotocol/go-sdk v0.3.0 h1:/1XC6+PpdKfE4CuFJz8/goo0An31bu8n8G8d3BkeJoY=
+github.com/modelcontextprotocol/go-sdk v0.3.0/go.mod h1:71VUZVa8LL6WARvSgLJ7DMpDWSeomT4uBv8g97mGBvo=
+github.com/yosida95/uritemplate/v3 v3.0.2 h1:Ed3Oyj9yrmi9087+NczuL5BwkIc4wvTb5zIM+UJPGz4=
+github.com/yosida95/uritemplate/v3 v3.0.2/go.mod h1:ILOh0sOhIJR3+L/8afwt/kE++YT040gmv5BQTMR2HP4=
