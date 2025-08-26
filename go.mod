@@ -1,4 +1,4 @@
-module zopen-mcp-server
+module github.com/IgorTodorovskiIBM/zopen-mcp-server
 
 go 1.23.0
 
