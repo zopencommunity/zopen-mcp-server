@@ -8,6 +8,11 @@
 - **Local Execution**: Run `zopen` commands on the local machine.
 - **MCP Integration**: Exposes `zopen` functionality as a set of tools that can be used by any MCP-compatible client.
 
+## Security Model
+By default, zopen-mcp-server communicates over stdio (standard input/output). When launched by a parent application (like Crush), this creates a direct and isolated communication channel. This method is inherently secure because the server is not exposed to a network port, preventing any unauthorized external connections.
+
+When running in remote mode, the server uses SSH to execute commands on the target z/OS system. All actions are performed with the permissions of the SSH user provided. It is crucial to use an SSH key with the appropriate level of authority for the tasks you intend to perform.
+
 ## Prerequisites
 
 - Go 1.23 or later
