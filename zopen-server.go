@@ -1,4 +1,4 @@
-// zopen_server.go
+// zopen-server.go
 package main
 
 import (
@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -18,17 +19,23 @@ import (
 // --- Configuration ---
 // Config holds the server's startup configuration, parsed from command-line flags.
 type Config struct {
-	Remote bool
-	Host   string
-	User   string
-	Key    string
-	Port   int
+	Remote    bool
+	Host      string
+	User      string
+	Key       string
+	Port      int
+	ZopenPath string
 }
 
 // --- Command Execution Logic ---
 
 // ZopenExecutor handles the logic of running zopen commands, either locally or via SSH.
 type ZopenExecutor struct {
+	config *Config
+}
+
+// ZopenGenerateExecutor handles the logic of running zopen-generate commands.
+type ZopenGenerateExecutor struct {
 	config *Config
 }
 
@@ -40,6 +47,12 @@ func NewZopenExecutor(config *Config) *ZopenExecutor {
 		log.Println("Executor initialized in LOCAL mode.")
 	}
 	return &ZopenExecutor{config: config}
+}
+
+// NewZopenGenerateExecutor creates a new executor based on the server's configuration.
+func NewZopenGenerateExecutor(config *Config) *ZopenGenerateExecutor {
+	log.Printf("Generate Executor initialized, will use zopen-generate from PATH")
+	return &ZopenGenerateExecutor{config: config}
 }
 
 // buildSSHCommand constructs the full SSH command for remote execution.
@@ -104,11 +117,164 @@ func (e *ZopenExecutor) RunCommand(ctx context.Context, zopenArgs []string) (str
 	return output, nil
 }
 
+// RunCommand executes a zopen-generate command with the provided arguments.
+func (e *ZopenGenerateExecutor) RunCommand(ctx context.Context, args []string) (string, error) {
+	// Find zopen-generate in PATH
+	commandPath, err := exec.LookPath("zopen-generate")
+	if err != nil {
+		return "", fmt.Errorf("❌ Error: zopen-generate not found in PATH")
+	}
+
+	log.Printf("Executing: %s %s", commandPath, strings.Join(args, " "))
+	cmd := exec.CommandContext(ctx, commandPath, args...)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		if errors.Is(err, exec.ErrNotFound) {
+			return "", fmt.Errorf("❌ Error: Command '%s' not found", commandPath)
+		}
+		// Return stderr as part of the output, not as an error
+		return fmt.Sprintf("❌ Error (Exit Code: %d):\n%s\n%s",
+			cmd.ProcessState.ExitCode(),
+			stderr.String(),
+			stdout.String()), nil
+	}
+
+	output := stdout.String()
+	if stderr.Len() > 0 {
+		output = fmt.Sprintf("%s\n%s", output, stderr.String())
+	}
+	
+	if output == "" {
+		return "✅ Command successful with no output.", nil
+	}
+	return output, nil
+}
+
 // --- Tool Definitions ---
 
 // ZopenTools holds the server configuration and defines the tool methods.
 type ZopenTools struct {
 	Config *Config
+}
+
+// --- ZopenGenerate Tool Definitions ---
+
+// ZopenGenerateTools holds the server configuration and defines the zopen-generate tool methods.
+type ZopenGenerateTools struct {
+	Config *Config
+}
+
+// --- ZopenGenerate Tool ---
+type ZopenGenerateParams struct {
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Categories  string   `json:"categories"`
+	License     string   `json:"license"`
+	StableUrl   string   `json:"stable_url,omitempty"`
+	StableDeps  string   `json:"stable_deps,omitempty"`
+	DevUrl      string   `json:"dev_url,omitempty"`
+	DevDeps     string   `json:"dev_deps,omitempty"`
+	BuildLine   string   `json:"build_line,omitempty"`
+	RuntimeDeps string   `json:"runtime_deps,omitempty"`
+	Force       bool     `json:"force,omitempty"`
+}
+
+func (t *ZopenGenerateTools) ZopenGenerate(ctx context.Context, req *mcp.CallToolRequest, args ZopenGenerateParams) (*mcp.CallToolResult, any, error) {
+	// Validate required parameters
+	if args.Name == "" || args.Description == "" || args.Categories == "" || args.License == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{
+				Text: "❌ Error: Required parameters missing. name, description, categories, and license are required.",
+			}},
+			IsError: true,
+		}, nil, nil
+	}
+
+	// Build command arguments
+	cmdArgs := []string{
+		"--name", args.Name,
+		"--description", args.Description,
+		"--categories", args.Categories,
+		"--license", args.License,
+		"--non-interactive", // Always run in non-interactive mode
+	}
+
+	// Add optional parameters if provided
+	if args.StableUrl != "" {
+		cmdArgs = append(cmdArgs, "--stable-url", args.StableUrl)
+	}
+	if args.StableDeps != "" {
+		cmdArgs = append(cmdArgs, "--stable-deps", args.StableDeps)
+	}
+	if args.DevUrl != "" {
+		cmdArgs = append(cmdArgs, "--dev-url", args.DevUrl)
+	}
+	if args.DevDeps != "" {
+		cmdArgs = append(cmdArgs, "--dev-deps", args.DevDeps)
+	}
+	if args.BuildLine != "" {
+		cmdArgs = append(cmdArgs, "--build-line", args.BuildLine)
+	}
+	if args.RuntimeDeps != "" {
+		cmdArgs = append(cmdArgs, "--runtime-deps", args.RuntimeDeps)
+	}
+	if args.Force {
+		cmdArgs = append(cmdArgs, "--force")
+	}
+
+	executor := NewZopenGenerateExecutor(t.Config)
+	output, err := executor.RunCommand(ctx, cmdArgs)
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
+			IsError: true,
+		}, nil, nil
+	}
+
+	isError := strings.HasPrefix(output, "❌")
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{&mcp.TextContent{Text: output}},
+		IsError: isError,
+	}, nil, nil
+}
+
+// --- ZopenGenerateHelp Tool ---
+func (t *ZopenGenerateTools) ZopenGenerateHelp(ctx context.Context, req *mcp.CallToolRequest, args any) (*mcp.CallToolResult, any, error) {
+	executor := NewZopenGenerateExecutor(t.Config)
+	output, err := executor.RunCommand(ctx, []string{"--help"})
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
+			IsError: true,
+		}, nil, nil
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{&mcp.TextContent{Text: output}},
+		IsError: false,
+	}, nil, nil
+}
+
+// --- ZopenGenerateVersion Tool ---
+func (t *ZopenGenerateTools) ZopenGenerateVersion(ctx context.Context, req *mcp.CallToolRequest, args any) (*mcp.CallToolResult, any, error) {
+	executor := NewZopenGenerateExecutor(t.Config)
+	output, err := executor.RunCommand(ctx, []string{"--version"})
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}},
+			IsError: true,
+		}, nil, nil
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{&mcp.TextContent{Text: output}},
+		IsError: false,
+	}, nil, nil
 }
 
 // Generic handler for zopen commands
@@ -278,6 +444,7 @@ func main() {
 	flag.StringVar(&config.User, "user", "", "SSH username for the remote system")
 	flag.StringVar(&config.Key, "key", "", "Path to the SSH private key file")
 	flag.IntVar(&config.Port, "port", 22, "SSH port number (default: 22)")
+	flag.StringVar(&config.ZopenPath, "zopen-path", "", "Path to the zopen executable (optional, will use PATH if not specified)")
 	flag.Parse()
 
 	if config.Remote && config.Host == "" {
@@ -286,12 +453,14 @@ func main() {
 		os.Exit(1)
 	}
 
+
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "Zopen Tools Server (Go)",
 		Version: "1.0.0",
 	}, nil)
 
 	tools := &ZopenTools{Config: config}
+	genTools := &ZopenGenerateTools{Config: config}
 
 	// Register each tool individually
 	mcp.AddTool(server, &mcp.Tool{Name: "zopen_list", Description: "Lists information about zopen community packages"}, tools.ZopenList)
@@ -304,6 +473,22 @@ func main() {
 	mcp.AddTool(server, &mcp.Tool{Name: "zopen_init", Description: "Initializes the zopen environment"}, tools.ZopenInit)
 	mcp.AddTool(server, &mcp.Tool{Name: "zopen_clean", Description: "Removes unused resources"}, tools.ZopenClean)
 	mcp.AddTool(server, &mcp.Tool{Name: "zopen_alt", Description: "Switch between different versions of a package"}, tools.ZopenAlt)
+
+	// Register zopen-generate tools
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "zopen_generate",
+		Description: "Generate a zopen compatible project with customizable parameters",
+	}, genTools.ZopenGenerate)
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "zopen_generate_help",
+		Description: "Display help information for zopen-generate",
+	}, genTools.ZopenGenerateHelp)
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "zopen_generate_version",
+		Description: "Display version information for zopen-generate",
+	}, genTools.ZopenGenerateVersion)
 
 	mode := "LOCAL"
 	if config.Remote {
