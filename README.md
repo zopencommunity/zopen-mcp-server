@@ -1,19 +1,45 @@
 # zopen-mcp-server
 
-`zopen-mcp-server` is a Go-based server that provides a remote interface to the `zopen` and `zopen-generate` command-line tools, allowing users to manage z/OS packages and generate zopen projects through the Model Context Protocol (MCP).
+`zopen-mcp-server` is a Go-based Model Context Protocol (MCP) server that provides AI assistants like Claude with access to `zopen` and `zopen-generate` command-line tools for managing z/OS packages and porting open-source software to z/OS.
 
 ## Features
 
-- **Remote Execution**: Run `zopen` commands on a remote z/OS system via SSH.
-- **Local Execution**: Run `zopen` and `zopen-generate` commands on the local machine.
-- **MCP Integration**: Exposes functionality as a set of tools that can be used by any MCP-compatible client.
-- **Project Generation**: Create zopen-compatible projects with customizable parameters.
-- **Case-Insensitive Validation**: Supports case-insensitive validation for categories and licenses in zopen-generate.
+- **Remote Execution**: Run `zopen` commands on a remote z/OS system via SSH
+- **Local Execution**: Run `zopen` and `zopen-generate` commands on your local machine
+- **MCP Integration**: Exposes functionality as a set of tools that can be used by any MCP-compatible client (Claude Desktop, etc.)
+- **Project Generation**: Create zopen-compatible projects with customizable parameters
+- **Metadata Discovery**: Query valid licenses, categories, and build systems
+- **Build Support**: Build zopen projects with detailed output
 
 ## Security Model
-By default, zopen-mcp-server communicates over stdio (standard input/output). When launched by a parent application (like Crush), this creates a direct and isolated communication channel. This method is inherently secure because the server is not exposed to a network port, preventing any unauthorized external connections.
+
+By default, zopen-mcp-server communicates over stdio (standard input/output). When launched by a parent application (like Claude Desktop), this creates a direct and isolated communication channel. This method is inherently secure because the server is not exposed to a network port, preventing any unauthorized external connections.
 
 When running in remote mode, the server uses SSH to execute commands on the target z/OS system. All actions are performed with the permissions of the SSH user provided. It is crucial to use an SSH key with the appropriate level of authority for the tasks you intend to perform.
+
+## Installation
+
+### Option 1: Install with `go install` (Recommended)
+
+```sh
+go install github.com/zopencommunity/zopen-mcp-server@latest
+```
+
+This will install the `zopen-mcp-server` binary to your `$GOPATH/bin` directory (typically `~/go/bin`).
+
+### Option 2: Build from Source
+
+```sh
+# Clone the repository
+git clone https://github.com/zopencommunity/zopen-mcp-server.git
+cd zopen-mcp-server
+
+# Build using make
+make build
+
+# Or build directly with go
+go build -o zopen-mcp-server zopen-server.go
+```
 
 ## Prerequisites
 
@@ -21,44 +47,116 @@ When running in remote mode, the server uses SSH to execute commands on the targ
 - An environment with `zopen` installed (either locally or on a remote z/OS system)
 - For zopen-generate functionality: An environment with `zopen-generate` installed and accessible in the PATH
 
-## Build and Run
+## Configuration
 
-A `Makefile` is provided to simplify the build and run process.
+### Claude Desktop Setup
 
-### Build
+Add the following to your Claude Desktop configuration file:
 
-To build the server, run:
+**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 
-```sh
-make build
+**Windows**: `%APPDATA%/Claude/claude_desktop_config.json`
+
+**Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+#### Local Mode (Default)
+
+```json
+{
+  "mcpServers": {
+    "zopen": {
+      "command": "zopen-mcp-server",
+      "args": []
+    }
+  }
+}
 ```
 
-This will create an executable named `zopen-mcp-server` in the project directory.
+If you installed with `go install`, make sure `~/go/bin` is in your PATH. Alternatively, use the full path:
 
-### Run
-
-To run the server, use the `run` target:
-
-```sh
-make run
+```json
+{
+  "mcpServers": {
+    "zopen": {
+      "command": "/Users/yourname/go/bin/zopen-mcp-server",
+      "args": []
+    }
+  }
+}
 ```
 
-By default, the server runs in **local mode**. To run in **remote mode**, you can pass command-line flags:
+#### Remote Mode (z/OS via SSH)
 
-```sh
-./zopen-mcp-server --remote --host <your-zos-host> --user <your-user> --key <path-to-ssh-key>
-
-# For specifying custom path to zopen executable:
-./zopen-mcp-server --zopen-path /path/to/zopen
+```json
+{
+  "mcpServers": {
+    "zopen": {
+      "command": "zopen-mcp-server",
+      "args": [
+        "--remote",
+        "--host", "your-zos-hostname",
+        "--user", "your-username",
+        "--key", "/path/to/your/ssh/key"
+      ]
+    }
+  }
+}
 ```
 
-### Clean
+#### With Debug Logging
 
-To clean up the build artifacts, run:
+```json
+{
+  "mcpServers": {
+    "zopen": {
+      "command": "zopen-mcp-server",
+      "args": [],
+      "env": {
+        "DEBUG": "1"
+      }
+    }
+  }
+}
+```
+
+After updating the configuration, **restart Claude Desktop** for the changes to take effect.
+
+## Usage
+
+Once configured, Claude will have access to all zopen tools. You can ask Claude to:
+
+- Port open-source software to z/OS
+- Generate zopen project structures
+- Build zopen projects
+- Query package information
+- Manage z/OS packages
+
+See [CLAUDE.md](CLAUDE.md) for detailed instructions on how Claude should use these tools for porting software.
+
+## Command Line Usage
+
+You can also run the server directly from the command line:
+
+### Local Mode
 
 ```sh
-make clean
+zopen-mcp-server
 ```
+
+### Remote Mode
+
+```sh
+zopen-mcp-server --remote --host <zos-host> --user <username> --key <ssh-key-path>
+```
+
+### Available Flags
+
+- `--remote`: Run in remote mode (requires SSH details)
+- `--host`: Remote z/OS hostname or IP (required for remote mode)
+- `--user`: SSH username for the remote system
+- `--key`: Path to the SSH private key file
+- `--port`: SSH port number (default: 22)
+- `--zopen-path`: Path to the zopen executable (optional)
 
 ## Available Tools
 
