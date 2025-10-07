@@ -74,11 +74,15 @@ The following `zopen` commands are available as tools:
 - `zopen_init`: Initializes the zopen environment.
 - `zopen_clean`: Removes unused resources.
 - `zopen_alt`: Switch between different versions of a package.
+- `zopen_build`: Build a zopen project in the specified directory.
 
 ### zopen-generate Tools
 
 The following `zopen-generate` commands are available as tools:
 
-- `zopen_generate`: Generate a zopen compatible project with customizable parameters.
+- `zopen_generate`: Generate a zopen compatible project with customizable parameters (including type and build_system).
 - `zopen_generate_help`: Display help information for zopen-generate.
 - `zopen_generate_version`: Display version information for zopen-generate.
+- `zopen_generate_list_licenses`: List all valid license identifiers (returns JSON).
+- `zopen_generate_list_categories`: List all valid project categories (returns JSON).
+- `zopen_generate_list_build_systems`: List all valid build systems (returns JSON).
