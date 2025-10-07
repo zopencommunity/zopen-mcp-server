@@ -91,8 +91,10 @@ func (e *ZopenExecutor) RunCommand(ctx context.Context, zopenArgs []string) (str
 		commandToRun = append([]string{"zopen"}, zopenArgs...)
 	}
 
-	// Logging disabled for MCP stdio protocol
-	// log.Printf("Executing: %s", strings.Join(commandToRun, " "))
+	// Log command execution if DEBUG is set
+	if os.Getenv("DEBUG") != "" {
+		log.Printf("Executing: %s", strings.Join(commandToRun, " "))
+	}
 	cmd := exec.CommandContext(ctx, commandToRun[0], commandToRun[1:]...)
 
 	var stdout, stderr bytes.Buffer
@@ -122,8 +124,10 @@ func (e *ZopenGenerateExecutor) RunCommand(ctx context.Context, args []string) (
 		return "", fmt.Errorf("❌ Error: zopen-generate not found in PATH")
 	}
 
-	// Logging disabled for MCP stdio protocol
-	// log.Printf("Executing: %s %s", commandPath, strings.Join(args, " "))
+	// Log command execution if DEBUG is set
+	if os.Getenv("DEBUG") != "" {
+		log.Printf("Executing: %s %s", commandPath, strings.Join(args, " "))
+	}
 	cmd := exec.CommandContext(ctx, commandPath, args...)
 
 	var stdout, stderr bytes.Buffer
