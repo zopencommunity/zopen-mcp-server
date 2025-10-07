@@ -1,19 +1,19 @@
 # zopen-mcp-server
 
-`zopen-mcp-server` is a Go-based Model Context Protocol (MCP) server that provides AI assistants like Claude with access to `zopen` and `zopen-generate` command-line tools for managing z/OS packages and porting open-source software to z/OS.
+`zopen-mcp-server` is a Go-based Model Context Protocol (MCP) server that provides AI assistants  with access to `zopen` and `zopen-generate` command-line tools for managing z/OS packages and porting open-source software to z/OS.
 
 ## Features
 
 - **Remote Execution**: Run `zopen` commands on a remote z/OS system via SSH
 - **Local Execution**: Run `zopen` and `zopen-generate` commands on your local machine
-- **MCP Integration**: Exposes functionality as a set of tools that can be used by any MCP-compatible client (Claude Desktop, etc.)
+- **MCP Integration**: Exposes functionality as a set of tools that can be used by any MCP-compatible client
 - **Project Generation**: Create zopen-compatible projects with customizable parameters
 - **Metadata Discovery**: Query valid licenses, categories, and build systems
 - **Build Support**: Build zopen projects with detailed output
 
 ## Security Model
 
-By default, zopen-mcp-server communicates over stdio (standard input/output). When launched by a parent application (like Claude Desktop), this creates a direct and isolated communication channel. This method is inherently secure because the server is not exposed to a network port, preventing any unauthorized external connections.
+By default, zopen-mcp-server communicates over stdio (standard input/output). When launched by a parent application, this creates a direct and isolated communication channel. This method is inherently secure because the server is not exposed to a network port, preventing any unauthorized external connections.
 
 When running in remote mode, the server uses SSH to execute commands on the target z/OS system. All actions are performed with the permissions of the SSH user provided. It is crucial to use an SSH key with the appropriate level of authority for the tasks you intend to perform.
 
@@ -49,15 +49,6 @@ go build -o zopen-mcp-server zopen-server.go
 
 ## Configuration
 
-### Claude Desktop Setup
-
-Add the following to your Claude Desktop configuration file:
-
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-
-**Windows**: `%APPDATA%/Claude/claude_desktop_config.json`
-
-**Linux**: `~/.config/Claude/claude_desktop_config.json`
 
 #### Local Mode (Default)
 
@@ -119,11 +110,11 @@ If you installed with `go install`, make sure `~/go/bin` is in your PATH. Altern
 }
 ```
 
-After updating the configuration, **restart Claude Desktop** for the changes to take effect.
+After updating the configuration, **restart the AI agent Desktop** for the changes to take effect.
 
 ## Usage
 
-Once configured, Claude will have access to all zopen tools. You can ask Claude to:
+Once configured, the AI agent will have access to all zopen tools. You can ask it to:
 
 - Port open-source software to z/OS
 - Generate zopen project structures
@@ -131,7 +122,7 @@ Once configured, Claude will have access to all zopen tools. You can ask Claude 
 - Query package information
 - Manage z/OS packages
 
-See [CLAUDE.md](CLAUDE.md) for detailed instructions on how Claude should use these tools for porting software.
+See [AGENTS.md](AGENTS.md) for detailed instructions on how the ai agent should use these tools for porting software.
 
 ## Command Line Usage
 
