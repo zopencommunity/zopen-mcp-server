@@ -142,6 +142,18 @@ Once configured, the AI agent will have access to all zopen tools. You can ask i
 - Query package information
 - Manage z/OS packages
 
+### Example Prompts
+
+Here are some example requests you can make to the AI agent:
+
+- **"Can you port curl to z/OS?"** - The agent will generate a zopen project structure, identify the build system, configure for z/OS, and attempt to build.
+- **"Generate a zopen project for openssl with the MIT license"** - Creates a new zopen-compatible project structure with proper metadata.
+- **"Build the project in /path/to/curlport"** - Executes the zopen build process in the specified directory.
+- **"What packages are available in zopen?"** - Lists all available packages in the zopen community.
+- **"Show me information about the bash package"** - Displays detailed information about a specific package.
+- **"Install git and make on my z/OS system"** - Installs the specified packages.
+- **"What build systems are supported?"** - Lists all valid build systems for zopen projects.
+
 See [AGENTS.md](AGENTS.md) for detailed instructions on how the ai agent should use these tools for porting software.
 
 ## Command Line Usage
