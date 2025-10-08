@@ -112,6 +112,26 @@ If you installed with `go install`, make sure `~/go/bin` is in your PATH. Altern
 
 After updating the configuration, **restart the AI agent Desktop** for the changes to take effect.
 
+#### Including AGENTS.md Context
+
+To provide the AI agent with detailed instructions on z/OS porting workflows, add the `AGENTS.md` file to the context in your settings:
+
+```json
+{
+  "mcpServers": {
+    "zopen": {
+      "command": "/home/itodoro/go/bin/zopen-mcp-server",
+      "args": []
+    }
+  },
+  "context": {
+    "fileName": ["AGENTS.md"]
+  }
+}
+```
+
+The `AGENTS.md` file contains comprehensive guidance for AI agents on how to port software to z/OS, including common issues, best practices, and workflow steps.
+
 ## Usage
 
 Once configured, the AI agent will have access to all zopen tools. You can ask it to:
