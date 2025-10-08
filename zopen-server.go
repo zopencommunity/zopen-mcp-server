@@ -595,6 +595,16 @@ func (t *ZopenTools) handleZopenCommandInDirectory(ctx context.Context, director
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: output}}, IsError: isError}, nil, nil
 }
 
+// --- ZopenBuildHelp Tool ---
+func (t *ZopenTools) ZopenBuildHelp(ctx context.Context, req *mcp.CallToolRequest, args any) (*mcp.CallToolResult, any, error) {
+	executor := NewZopenExecutor(t.Config)
+	output, err := executor.RunCommand(ctx, []string{"build", "--help"})
+	if err != nil {
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}, IsError: true}, nil, nil
+	}
+	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: output}}, IsError: false}, nil, nil
+}
+
 // --- ZopenGenerateListLicenses Tool ---
 func (t *ZopenGenerateTools) ZopenGenerateListLicenses(ctx context.Context, req *mcp.CallToolRequest, args any) (*mcp.CallToolResult, any, error) {
 	executor := NewZopenGenerateExecutor(t.Config)
@@ -685,6 +695,7 @@ func main() {
 	mcp.AddTool(server, &mcp.Tool{Name: "zopen_clean", Description: "Removes unused resources"}, tools.ZopenClean)
 	mcp.AddTool(server, &mcp.Tool{Name: "zopen_alt", Description: "Switch between different versions of a package"}, tools.ZopenAlt)
 	mcp.AddTool(server, &mcp.Tool{Name: "zopen_build", Description: "Build a zopen project in the specified directory"}, tools.ZopenBuild)
+	mcp.AddTool(server, &mcp.Tool{Name: "zopen_build_help", Description: "Display help information for zopen build"}, tools.ZopenBuildHelp)
 
 	// Register zopen-generate tools
 	mcp.AddTool(server, &mcp.Tool{
