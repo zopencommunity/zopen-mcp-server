@@ -449,6 +449,7 @@ func (t *ZopenTools) ZopenAlt(ctx context.Context, req *mcp.CallToolRequest, arg
 type ZopenBuildParams struct {
 	Directory string `json:"directory"`
 	Verbose   bool   `json:"verbose"`
+	Force     bool   `json:"force"`
 }
 
 func (t *ZopenTools) ZopenBuild(ctx context.Context, req *mcp.CallToolRequest, args ZopenBuildParams) (*mcp.CallToolResult, any, error) {
@@ -465,6 +466,9 @@ func (t *ZopenTools) ZopenBuild(ctx context.Context, req *mcp.CallToolRequest, a
 	zopenArgs := []string{"build"}
 	if args.Verbose {
 		zopenArgs = append(zopenArgs, "-vv")
+	}
+	if args.Force {
+		zopenArgs = append(zopenArgs, "-f")
 	}
 
 	// For local execution, we need to cd into the directory
