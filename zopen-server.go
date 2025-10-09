@@ -646,6 +646,48 @@ func (t *ZopenTools) ZopenCreateRepo(ctx context.Context, req *mcp.CallToolReque
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: output}}, IsError: isError}, nil, nil
 }
 
+// --- ZopenCreateCicdJob Tool ---
+type ZopenCreateCicdJobParams struct {
+	Name       string `json:"name"`
+	BuildType  string `json:"build_type"`
+	ScriptName string `json:"script_name"`
+	RunAfter   string `json:"run_after"`
+}
+
+func (t *ZopenTools) ZopenCreateCicdJob(ctx context.Context, req *mcp.CallToolRequest, args ZopenCreateCicdJobParams) (*mcp.CallToolResult, any, error) {
+	if args.Name == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{
+				Text: "❌ Error: name parameter is required",
+			}},
+			IsError: true,
+		}, nil, nil
+	}
+
+	// Build the command
+	zopenArgs := []string{"create-cicd-job", "-v", "-n", args.Name}
+
+	if args.BuildType != "" {
+		zopenArgs = append(zopenArgs, "-b", args.BuildType)
+	}
+
+	if args.ScriptName != "" {
+		zopenArgs = append(zopenArgs, "-s", args.ScriptName)
+	}
+
+	if args.RunAfter != "" {
+		zopenArgs = append(zopenArgs, "-r", args.RunAfter)
+	}
+
+	executor := NewZopenExecutor(t.Config)
+	output, err := executor.RunCommand(ctx, zopenArgs)
+	if err != nil {
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}, IsError: true}, nil, nil
+	}
+	isError := strings.HasPrefix(output, "❌")
+	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: output}}, IsError: isError}, nil, nil
+}
+
 // --- ZopenGenerateListLicenses Tool ---
 func (t *ZopenGenerateTools) ZopenGenerateListLicenses(ctx context.Context, req *mcp.CallToolRequest, args any) (*mcp.CallToolResult, any, error) {
 	executor := NewZopenGenerateExecutor(t.Config)
@@ -738,6 +780,7 @@ func main() {
 	mcp.AddTool(server, &mcp.Tool{Name: "zopen_build", Description: "Build a zopen project in the specified directory"}, tools.ZopenBuild)
 	mcp.AddTool(server, &mcp.Tool{Name: "zopen_build_help", Description: "Display help information for zopen build"}, tools.ZopenBuildHelp)
 	mcp.AddTool(server, &mcp.Tool{Name: "zopen_create_repo", Description: "Create a new port repository in zopencommunity (core contributors only)"}, tools.ZopenCreateRepo)
+	mcp.AddTool(server, &mcp.Tool{Name: "zopen_create_cicd_job", Description: "Create a Jenkins CI/CD job for a port (core contributors only)"}, tools.ZopenCreateCicdJob)
 
 	// Register zopen-generate tools
 	mcp.AddTool(server, &mcp.Tool{
