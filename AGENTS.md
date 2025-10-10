@@ -25,6 +25,8 @@ Before starting, collect the following information about the project, here on ou
 
 **Action**: Use `zopen_generate_list_licenses`, `zopen_generate_list_categories`, and `zopen_generate_list_build_systems` to get valid options. Use the brew json information to get the additional data such as source location.
 
+**Find Similar Projects**: After detecting the tool, find a similar tool from `https://raw.githubusercontent.com/zopencommunity/meta/refs/heads/main/docs/api/zopen_releases_latest.json` for reference. Use the buildenv from that similar project as context, e.g., `https://github.com/zopencommunity/curlport/blob/main/buildenv`.
+
 ### Step 2: Generate the zopen Project
 
 Use the `zopen_generate` tool to create the project structure.
@@ -135,7 +137,52 @@ After a successful build, verify the port:
 2. Test the built binaries
 3. Verify dependencies are correctly listed
 
-### Step 6: Document Changes
+### Step 6: Update buildenv with Version Information
+
+After a successful build:
+
+1. Update the buildenv file with proper VRM (Version-Release-Modification)
+2. Add bump check step to verify version updates:
+   ```bash
+   # Use bump tool to check if new version is available
+   zopen_check_for_update
+   {
+     bump check
+   }
+   ```
+
+### Step 7: Create Repository (Optional)
+
+Upon successful build and verification, ask the user if they want to create a GitHub repository for the port.
+
+If yes, use the `zopen_create_repo` tool:
+
+```json
+{
+  "name": "curl",
+  "description": "Command line tool for transferring data with URLs",
+  "user": "username"
+}
+```
+
+**Note**: This tool is only for core contributors with admin permissions in the zopencommunity organization.
+
+### Step 8: Create CI/CD Job (Optional)
+
+After creating the repository, ask the user if they want to create a Jenkins CI/CD job.
+
+If yes, use the `zopen_create_cicd_job` tool:
+
+```json
+{
+  "name": "curl",
+  "build_type": "STABLE",
+  "script_name": "zopen_build.sh",
+  "run_after": ""
+}
+```
+
+### Step 9: Document Changes
 
 Keep track of:
 - Any source code modifications
@@ -155,6 +202,27 @@ Create a README.md file in the patches directory
 ### Environment
 
 - `zopen_version`: Check zopen version
+
+## Build Analysis
+
+If the user asks to analyze a problem for a project, skip directly to build analysis:
+
+1. Look in the `log.STABLE` or `log.DEV` directories for the latest log files
+2. Analyze the error messages in the logs
+3. Identify the root cause of the failure
+4. Suggest fixes based on the analysis
+
+## Debugging on z/OS
+
+z/OS does not have a comprehensive debugger like GDB. Use these techniques:
+
+1. **fprintf statements**: Inject `fprintf(stderr, "Debug: variable=%d\n", var);` statements to trace execution
+2. **__display_backtrace**: Use z/OS-specific backtrace function to emit stack traces:
+   ```c
+   #ifdef __MVS__
+   __display_backtrace(2);  // Emits stacktrace to screen
+   #endif
+   ```
 
 ## Best Practices
 
