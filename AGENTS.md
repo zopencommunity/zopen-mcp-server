@@ -9,6 +9,8 @@ You have access to zopen tools through MCP that allow you to:
 - Build projects on z/OS
 - Query package information
 - Install and manage z/OS packages
+- All zopen tools are compiled with UTF8/ASCII mode turned on. Enhanced Auto-Conversion is enabled meaning files are auto-converted based on the file tag (ccsid) to ASCII / UTF8.
+- The library zoslib is used in all C and C++ projects to bridge the gap between z/OS LE runtime environment and the Linux C runtime. Source is here: https://github.com/ibmruntimes/zoslib/tree/zopen2
 
 ## Porting to z/OS Workflow
 
@@ -21,7 +23,7 @@ Before starting, collect the following information about the project, here on ou
 3. **Repository URL** (GitHub or other git repository)
 4. **License** (SPDX identifier). Call zopen_generate_list_licenses to see all valid license identifiers
 5. **Categories** Call zopen_generate_list_categories to see all valid categories
-6. **Build System** (e.g., "GNU Make", "CMake", "Meson") Call zopen_generate_list_build_systems to see all valid build systems
+6. **Build System** Call zopen_generate_list_build_systems to see all valid build systems
 
 **Action**: Use `zopen_generate_list_licenses`, `zopen_generate_list_categories`, and `zopen_generate_list_build_systems` to get valid options. Use the brew json information to get the additional data such as source location.
 
@@ -103,12 +105,11 @@ Apply changes to this source code directly. Do not create patches in the patches
 
 2. **Missing Dependencies**
    - **Symptom**: "library not found" or "header not found"
-   - **Solution**: Add dependencies to stable_deps 
-   - **Action**: Use `zopen_query` to find available packages
+   - **Solution**: Determine what library has the dependencies and add to stable_deps in buildenv file. If it's a c runtime library missing header or function, add it to the zoslib library. 
 
 3. **EBCDIC/ASCII Issues**
    - **Symptom**: Character encoding errors
-   - **Solution**: May require source code changes. 
+   - **Solution**: May require source code changes such as tagging of file descriptors to enable auto-conversion.
 
 4. **Platform-Specific Code**
    - **Symptom**: References to unsupported syscalls or APIs
@@ -195,8 +196,7 @@ Create a README.md file in the patches directory
 
 ### Query Package Information
 
-- `zopen_list`: List all available packages
-- `zopen_query`: Get details about specific packages
+- Download and inspect https://raw.githubusercontent.com/zopencommunity/meta/refs/heads/main/docs/api/zopen_releases_latest.json | jq -r '.release_data | keys[]' for all zopen available packages
 - `zopen_info`: Detailed information about a package
 
 ### Environment
