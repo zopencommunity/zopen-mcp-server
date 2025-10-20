@@ -24,8 +24,16 @@ Before starting, collect the following information about the project, here on ou
 4. **License** (SPDX identifier). Call zopen_generate_list_licenses to see all valid license identifiers
 5. **Categories** Call zopen_generate_list_categories to see all valid categories
 6. **Build System** Call zopen_generate_list_build_systems to see all valid build systems
+7. **Version Check Regex** (for bump configuration - from Homebrew livecheck)
 
 **Action**: Use `zopen_generate_list_licenses`, `zopen_generate_list_categories`, and `zopen_generate_list_build_systems` to get valid options. Use the brew json information to get the additional data such as source location.
+
+**Getting Version Check Regex from Homebrew:**
+- From the brew JSON (e.g., `https://formulae.brew.sh/api/formula/${PROJECT}.json`), get the `ruby_source_path` field
+- Construct the Homebrew formula URL: `https://raw.githubusercontent.com/Homebrew/homebrew-core/refs/heads/main/{ruby_source_path}`
+- Example: `ruby_source_path: "Formula/m/midnight-commander.rb"` → `https://raw.githubusercontent.com/Homebrew/homebrew-core/refs/heads/main/Formula/m/midnight-commander.rb`
+- Fetch the formula file and look for the `livecheck` block which contains the version detection regex
+- Save this regex for later use in configuring the bump line (Step 6.2)
 
 **Find Similar Projects**: After detecting the tool, find a similar tool from `https://raw.githubusercontent.com/zopencommunity/meta/refs/heads/main/docs/api/zopen_releases_latest.json` for reference. Use the buildenv from that similar project as context, e.g., `https://github.com/zopencommunity/curlport/blob/main/buildenv`.
 
@@ -131,27 +139,132 @@ The platform macro for z/OS is __MVS__. You can use this to guard new changes or
 5. Repeat until successful
 6. After a successful build, create the patch in the patches dir from the modified source using git diff HEAD > ../patches/PR1.patch
 
-### Step 5: Verify Installation
+### Step 5: Post-Build Configuration
 
-After a successful build, verify the port:
+After a successful build, perform these configuration tasks:
+
+#### 5.1 Verify Installation
 
 1. Use `zopen_info` to check package details
 2. Test the built binaries
 3. Verify dependencies are correctly listed
 
+#### 5.2 Verify Bump Line Configuration
+
+Check the bump line at the top of the buildenv file to ensure version tracking is properly configured. This enables automatic version checking.
+
+**Action:** Verify the bump line matches your project's version source (tarball URL or git repository). See **Step 6.2** for detailed bump line configuration.
+
+#### 5.3 Update zopen_append_to_env for Libraries/Headers
+
+If the project provides libraries or header files that other ports may depend on, you **must** uncomment and update the `zopen_append_to_env` function in the buildenv file.
+
+**Check if your project provides:**
+- Libraries (`.so`, `.a` files) in a `lib/` directory
+- Header files (`.h`, `.hpp` files) in an `include/` directory
+
+**If yes, update the buildenv file:**
+
+1. Locate the commented `zopen_append_to_env` function in buildenv
+2. Uncomment it and update the library name:
+
+```bash
+# For libraries, this hook exports variables for other ports to use.
+zopen_append_to_env() {
+  cat <<END
+if [ ! -z "\$ZOPEN_IN_ZOPEN_BUILD" ]; then
+  export ZOPEN_EXTRA_CFLAGS="\${ZOPEN_EXTRA_CFLAGS} -I\${PWD}/include"
+  export ZOPEN_EXTRA_CXXFLAGS="\${ZOPEN_EXTRA_CXXFLAGS} -I\${PWD}/include"
+  export ZOPEN_EXTRA_LDFLAGS="\${ZOPEN_EXTRA_LDFLAGS} -L\${PWD}/lib"
+  export ZOPEN_EXTRA_LIBS="\${ZOPEN_EXTRA_LIBS} -l<library_name>"
+fi
+END
+}
+```
+
+**Replace `<library_name>`** with the actual library name (without `lib` prefix or file extension).
+
+**Example:** If the library is `libcurl.so`, use `-lcurl`:
+```bash
+export ZOPEN_EXTRA_LIBS="\${ZOPEN_EXTRA_LIBS} -lcurl"
+```
+
+**When to skip:** If the project only provides executables/binaries (no libraries), leave this function commented out.
+
 ### Step 6: Update buildenv with Version Information
 
 After a successful build:
 
-1. Update the buildenv file with proper VRM (Version-Release-Modification)
-2. Add bump check step to verify version updates:
-   ```bash
-   # Use bump tool to check if new version is available
-   zopen_check_for_update
-   {
-     bump check
-   }
+#### 6.1 Update VRM (Version-Release-Modification)
+
+Update the buildenv file with the correct version information.
+
+#### 6.2 Verify and Update Bump Line
+
+The bump line at the top of the buildenv file enables automatic version checking using the [bump tool](https://github.com/wader/bump). Verify and update it to match your project's version tracking.
+
+**Finding Version Check Regex from Homebrew:**
+
+You can leverage the livecheck regex from Homebrew formulas:
+
+1. Get the `ruby_source_path` from the brew JSON (e.g., `https://formulae.brew.sh/api/formula/${PROJECT}.json`)
+2. Construct the formula URL: `https://raw.githubusercontent.com/Homebrew/homebrew-core/refs/heads/main/{ruby_source_path}`
+3. Fetch the formula file and look for the `livecheck` block, which contains the version regex
+4. Adapt the regex for use with bump
+
+**Example:**
+- Brew JSON: `https://formulae.brew.sh/api/formula/midnight-commander.json`
+- Field: `"ruby_source_path": "Formula/m/midnight-commander.rb"`
+- Formula URL: `https://raw.githubusercontent.com/Homebrew/homebrew-core/refs/heads/main/Formula/m/midnight-commander.rb`
+- Fetch this file and look for the livecheck block, which contains the version detection regex that can be adapted for bump
+
+**Bump Line Format:**
+
+For **tarball URLs**:
+```bash
+# bump: <package>-version /<VAR_NAME>="(.*)"/ <stable_url_with_version>|semver:*
+# <VAR_NAME>="V.R.M"
+```
+
+For **git repositories**:
+```bash
+# bump: <package>-version /<VAR_NAME>="(.*)"/ git:<repo_url>|semver:*
+# <VAR_NAME>="V.R.M"
+```
+
+**Example for tarball:**
+```bash
+# bump: util-macros-version /UTIL_MACROS_VERSION="(.*)"/ https://www.x.org/archive/individual/util/util-macros-1.20.2.tar.xz|semver:*
+# UTIL_MACROS_VERSION="1.20.2"
+```
+
+**Example for git:**
+```bash
+# bump: curl-version /CURL_VERSION="(.*)"/ git:https://github.com/curl/curl|semver:*
+# CURL_VERSION="8.5.0"
+```
+
+**Important:**
+- The version variable name must match the regex pattern (e.g., `CURL_VERSION` matches `/CURL_VERSION="(.*)"/`)
+- The stable_url or git repository URL must include the actual version in the URL (for tarballs) or use `git:` prefix (for repos)
+- The version string should use semantic versioning format (V.R.M)
+- After updating, verify bump can detect versions by running:
+  ```bash
+  bump check buildenv    # Check for newer versions
+  bump current buildenv  # Show current version
+  ```
+
+#### 6.3 Update .gitignore to exclude source directories:
+
+   After running `zopen build`, source directories are created that should not be committed to the repository. Update the `.gitignore` file in the port directory to exclude them:
+
    ```
+   # Ignore source directories created by zopen build
+   source/
+   source-*/
+   ```
+
+   This wildcard pattern ensures current and future source directories are ignored when committing to the repository.
 
 ### Step 7: Create Repository (Optional)
 
@@ -173,6 +286,30 @@ If yes, use the `zopen_create_repo` tool:
 - `user` (optional): GitHub username to assign as admin
 
 **Note**: This tool is only for core contributors with admin permissions in the zopencommunity organization. GitHub token must be set via GITHUB_TOKEN environment variable.
+
+#### Setting Up Git Remote for the Port Repository
+
+After creating the repository, when you're ready to commit and push the port project to the zopencommunity organization:
+
+**IMPORTANT: Use git:// protocol instead of https:// for the zopen community port repository.**
+
+```bash
+# Initialize git in the port directory if not already done
+cd <name>port
+git init
+
+# Add the remote using git:// protocol (NOT https://)
+git remote add origin git://github.com/zopencommunity/<name>port.git
+
+# Commit and push changes
+git add .
+git commit -m "Initial port of <name>"
+git push origin main
+```
+
+**Why git:// protocol?** The git:// protocol is required for pushing to zopencommunity repositories from the z/OS environment.
+
+**Note:** Upstream source repositories (stable_url parameter) should continue to use https:// protocol.
 
 ### Step 8: Create CI/CD Job (Optional)
 
