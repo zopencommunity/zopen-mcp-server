@@ -232,27 +232,57 @@ For **git repositories**:
 # <VAR_NAME>="V.R.M"
 ```
 
-**Example for tarball:**
+**Example for HTML directory listing with capture group:**
 ```bash
-# bump: util-macros-version /UTIL_MACROS_VERSION="(.*)"/ https://www.x.org/archive/individual/util/util-macros-1.20.2.tar.xz|semver:*
-# UTIL_MACROS_VERSION="1.20.2"
+# bump: bash-version /BASH_VERSION="(.*)"/ https://ftp.gnu.org/gnu/bash/|re:/href="bash-([\d.]+).tar.gz"/$1/|semver:*
+BASH_VERSION="5.3"
 ```
 
-**Example for git:**
+**Example for HTML directory listing without capture group:**
 ```bash
-# bump: curl-version /CURL_VERSION="(.*)"/ git:https://github.com/curl/curl|semver:*
-# CURL_VERSION="8.5.0"
+# bump: c3270-version /C3270_VERSION="(.*)"/ https://sourceforge.net/projects/x3270/files/x3270/|re:/Click.to.enter.([\d.]+g?a?\d+)"/
+C3270_VERSION="4.4ga6"
 ```
 
-**Important:**
-- The version variable name must match the regex pattern (e.g., `CURL_VERSION` matches `/CURL_VERSION="(.*)"/`)
-- The stable_url or git repository URL must include the actual version in the URL (for tarballs) or use `git:` prefix (for repos)
-- The version string should use semantic versioning format (V.R.M)
-- After updating, verify bump can detect versions by running:
-  ```bash
-  bump check buildenv    # Check for newer versions
-  bump current buildenv  # Show current version
-  ```
+**Example for git repository:**
+```bash
+# bump: git-version /GIT_VERSION="(.*)"/ https://github.com/git/git.git|*
+GIT_VERSION="2.51.0"
+```
+
+**Important Steps After Updating Bump Line:**
+
+1. **Update ZOPEN_STABLE_URL or ZOPEN_STABLE_TAG to use the version variable:**
+   ```bash
+   # For tarball URLs:
+   export ZOPEN_STABLE_URL="https://example.com/package-${PACKAGE_VERSION}.tar.gz"
+
+   # For git repositories:
+   export ZOPEN_STABLE_TAG="v${PACKAGE_VERSION}"
+   ```
+
+2. **Update zopen_get_version() function:**
+   ```bash
+   zopen_get_version() {
+     echo "$PACKAGE_VERSION"  # Use your version variable name
+   }
+   ```
+
+3. **Verify bump works:**
+   ```bash
+   bump current buildenv  # Show current version (should match your PACKAGE_VERSION)
+   bump check buildenv    # Check for newer versions
+   ```
+
+**Bump Line Syntax Notes:**
+- The version variable name must match the regex pattern (e.g., `BASH_VERSION` matches `/BASH_VERSION="(.*)"/`)
+- For HTML directory listings: Use `|re:/regex/` to extract version from HTML
+  - The regex should match the content in the HTML
+  - Use `[\d.]+` to match standard versions, add custom patterns like `g?a?\d+` for suffixes
+  - Can use `/$1/` capture group syntax (e.g., bash example) or extract match automatically (e.g., c3270 example)
+  - Pattern: `|re:/href="package-([\d.]+).tar.gz"/$1/|semver:*` or `|re:/Click.to.enter.([\d.]+)"/`
+- For git repositories: Use `git.git|*` format (the `|*` matches all tags)
+- Always verify with `bump current buildenv` then `bump check buildenv` after updating
 
 #### 6.3 Update .gitignore to exclude source directories:
 
