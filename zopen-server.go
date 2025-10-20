@@ -636,24 +636,112 @@ func (t *ZopenTools) ZopenCreateRepo(ctx context.Context, req *mcp.CallToolReque
 		}, nil, nil
 	}
 
-	// Build the command
-	zopenArgs := []string{"create-repo", "-v", "-n", args.Name}
+	// Build the command arguments
+	cmdArgs := []string{"-v", "-n", args.Name}
 
 	if args.Description != "" {
-		zopenArgs = append(zopenArgs, "-d", args.Description)
+		cmdArgs = append(cmdArgs, "-d", args.Description)
 	}
 
 	if args.User != "" {
-		zopenArgs = append(zopenArgs, "-u", args.User)
+		cmdArgs = append(cmdArgs, "-u", args.User)
 	}
 
-	executor := NewZopenExecutor(t.Config)
-	output, err := executor.RunCommand(ctx, zopenArgs)
-	if err != nil {
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}, IsError: true}, nil, nil
+	// Execute zopen-create-repo command directly
+	if t.Config.Remote {
+		// For remote execution, build SSH command
+		sshArgs := []string{"-p", fmt.Sprintf("%d", t.Config.Port)}
+		if t.Config.Key != "" {
+			sshArgs = append(sshArgs, "-i", t.Config.Key)
+		}
+		sshArgs = append(sshArgs,
+			"-o", "StrictHostKeyChecking=no",
+			"-o", "UserKnownHostsFile=/dev/null",
+			"-o", "LogLevel=ERROR",
+		)
+
+		target := t.Config.Host
+		if t.Config.User != "" {
+			target = fmt.Sprintf("%s@%s", t.Config.User, t.Config.Host)
+		}
+		sshArgs = append(sshArgs, target)
+
+		// Quote arguments for the remote shell using proper shell escaping
+		var quotedArgs []string
+		for _, arg := range cmdArgs {
+			escaped := strings.ReplaceAll(arg, `'`, `'\''`)
+			quotedArgs = append(quotedArgs, fmt.Sprintf(`'%s'`, escaped))
+		}
+
+		innerCommand := fmt.Sprintf(". ~/.profile && zopen-create-repo %s", strings.Join(quotedArgs, " "))
+		remoteCmd := fmt.Sprintf("/bin/sh -c \"%s\"", innerCommand)
+		sshArgs = append(sshArgs, remoteCmd)
+
+		cmd := exec.CommandContext(ctx, "ssh", sshArgs...)
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+
+		err := cmd.Run()
+		if err != nil {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{
+					Text: fmt.Sprintf("❌ Error (Exit Code: %d):\n%s", cmd.ProcessState.ExitCode(), stderr.String()),
+				}},
+				IsError: true,
+			}, nil, nil
+		}
+
+		output := stdout.String()
+		if output == "" {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: "✅ Command successful with no output."}},
+				IsError: false,
+			}, nil, nil
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: output}},
+			IsError: false,
+		}, nil, nil
 	}
-	isError := strings.HasPrefix(output, "❌")
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: output}}, IsError: isError}, nil, nil
+
+	// Local execution
+	commandPath, err := exec.LookPath("zopen-create-repo")
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{
+				Text: "❌ Error: zopen-create-repo not found in PATH",
+			}},
+			IsError: true,
+		}, nil, nil
+	}
+
+	cmd := exec.CommandContext(ctx, commandPath, cmdArgs...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err = cmd.Run()
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{
+				Text: fmt.Sprintf("❌ Error (Exit Code: %d):\n%s", cmd.ProcessState.ExitCode(), stderr.String()),
+			}},
+			IsError: true,
+		}, nil, nil
+	}
+
+	output := stdout.String()
+	if output == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: "✅ Command successful with no output."}},
+			IsError: false,
+		}, nil, nil
+	}
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{&mcp.TextContent{Text: output}},
+		IsError: false,
+	}, nil, nil
 }
 
 // --- ZopenCreateCicdJob Tool ---
@@ -674,28 +762,116 @@ func (t *ZopenTools) ZopenCreateCicdJob(ctx context.Context, req *mcp.CallToolRe
 		}, nil, nil
 	}
 
-	// Build the command
-	zopenArgs := []string{"create-cicd-job", "-v", "-n", args.Name}
+	// Build the command arguments
+	cmdArgs := []string{"-v", "-n", args.Name}
 
 	if args.BuildType != "" {
-		zopenArgs = append(zopenArgs, "-b", args.BuildType)
+		cmdArgs = append(cmdArgs, "-b", args.BuildType)
 	}
 
 	if args.ScriptName != "" {
-		zopenArgs = append(zopenArgs, "-s", args.ScriptName)
+		cmdArgs = append(cmdArgs, "-s", args.ScriptName)
 	}
 
 	if args.RunAfter != "" {
-		zopenArgs = append(zopenArgs, "-r", args.RunAfter)
+		cmdArgs = append(cmdArgs, "-r", args.RunAfter)
 	}
 
-	executor := NewZopenExecutor(t.Config)
-	output, err := executor.RunCommand(ctx, zopenArgs)
-	if err != nil {
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}, IsError: true}, nil, nil
+	// Execute zopen-create-cicd-job command directly
+	if t.Config.Remote {
+		// For remote execution, build SSH command
+		sshArgs := []string{"-p", fmt.Sprintf("%d", t.Config.Port)}
+		if t.Config.Key != "" {
+			sshArgs = append(sshArgs, "-i", t.Config.Key)
+		}
+		sshArgs = append(sshArgs,
+			"-o", "StrictHostKeyChecking=no",
+			"-o", "UserKnownHostsFile=/dev/null",
+			"-o", "LogLevel=ERROR",
+		)
+
+		target := t.Config.Host
+		if t.Config.User != "" {
+			target = fmt.Sprintf("%s@%s", t.Config.User, t.Config.Host)
+		}
+		sshArgs = append(sshArgs, target)
+
+		// Quote arguments for the remote shell using proper shell escaping
+		var quotedArgs []string
+		for _, arg := range cmdArgs {
+			escaped := strings.ReplaceAll(arg, `'`, `'\''`)
+			quotedArgs = append(quotedArgs, fmt.Sprintf(`'%s'`, escaped))
+		}
+
+		innerCommand := fmt.Sprintf(". ~/.profile && zopen-create-cicd-job %s", strings.Join(quotedArgs, " "))
+		remoteCmd := fmt.Sprintf("/bin/sh -c \"%s\"", innerCommand)
+		sshArgs = append(sshArgs, remoteCmd)
+
+		cmd := exec.CommandContext(ctx, "ssh", sshArgs...)
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+
+		err := cmd.Run()
+		if err != nil {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{
+					Text: fmt.Sprintf("❌ Error (Exit Code: %d):\n%s", cmd.ProcessState.ExitCode(), stderr.String()),
+				}},
+				IsError: true,
+			}, nil, nil
+		}
+
+		output := stdout.String()
+		if output == "" {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: "✅ Command successful with no output."}},
+				IsError: false,
+			}, nil, nil
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: output}},
+			IsError: false,
+		}, nil, nil
 	}
-	isError := strings.HasPrefix(output, "❌")
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: output}}, IsError: isError}, nil, nil
+
+	// Local execution
+	commandPath, err := exec.LookPath("zopen-create-cicd-job")
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{
+				Text: "❌ Error: zopen-create-cicd-job not found in PATH",
+			}},
+			IsError: true,
+		}, nil, nil
+	}
+
+	cmd := exec.CommandContext(ctx, commandPath, cmdArgs...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err = cmd.Run()
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{
+				Text: fmt.Sprintf("❌ Error (Exit Code: %d):\n%s", cmd.ProcessState.ExitCode(), stderr.String()),
+			}},
+			IsError: true,
+		}, nil, nil
+	}
+
+	output := stdout.String()
+	if output == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: "✅ Command successful with no output."}},
+			IsError: false,
+		}, nil, nil
+	}
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{&mcp.TextContent{Text: output}},
+		IsError: false,
+	}, nil, nil
 }
 
 // --- ZopenGenerateListLicenses Tool ---
