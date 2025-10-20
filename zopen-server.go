@@ -980,8 +980,26 @@ func main() {
 	mcp.AddTool(server, &mcp.Tool{Name: "zopen_alt", Description: "Switch between different versions of a package"}, tools.ZopenAlt)
 	mcp.AddTool(server, &mcp.Tool{Name: "zopen_build", Description: "Build a zopen project in the specified directory"}, tools.ZopenBuild)
 	mcp.AddTool(server, &mcp.Tool{Name: "zopen_build_help", Description: "Display help information for zopen build"}, tools.ZopenBuildHelp)
-	mcp.AddTool(server, &mcp.Tool{Name: "zopen_create_repo", Description: "Create a new port repository in zopencommunity (core contributors only)"}, tools.ZopenCreateRepo)
-	mcp.AddTool(server, &mcp.Tool{Name: "zopen_create_cicd_job", Description: "Create a Jenkins CI/CD job for a port (core contributors only)"}, tools.ZopenCreateCicdJob)
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "zopen_create_repo",
+		Description: `Create a new port repository in zopencommunity (core contributors only)
+Parameters:
+- name (required): Port name without 'port' suffix (e.g., curl, openssl)
+- description (optional): Repository description (default: 'zopen port of <name>')
+- user (optional): GitHub username to assign as admin
+
+Note: You must have admin permissions in the zopencommunity organization.
+      GitHub token must be set via GITHUB_TOKEN environment variable.`,
+	}, tools.ZopenCreateRepo)
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "zopen_create_cicd_job",
+		Description: `Create a Jenkins CI/CD job for a port (core contributors only)
+Parameters:
+- name (required): Port name without 'port' suffix (e.g., curl, openssl)
+- build_type (optional): "stable" or "dev" (default: stable)
+- script_name (optional): Groovy script path in repo (default: cicd-stable.groovy)
+- run_after (optional): "yes" or "no" - trigger job after creation (default: yes)`,
+	}, tools.ZopenCreateCicdJob)
 
 	// Register zopen-generate tools
 	mcp.AddTool(server, &mcp.Tool{

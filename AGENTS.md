@@ -167,7 +167,12 @@ If yes, use the `zopen_create_repo` tool:
 }
 ```
 
-**Note**: This tool is only for core contributors with admin permissions in the zopencommunity organization.
+**Parameters:**
+- `name` (required): Port name without 'port' suffix (e.g., curl, openssl)
+- `description` (optional): Repository description (default: 'zopen port of <name>')
+- `user` (optional): GitHub username to assign as admin
+
+**Note**: This tool is only for core contributors with admin permissions in the zopencommunity organization. GitHub token must be set via GITHUB_TOKEN environment variable.
 
 ### Step 8: Create CI/CD Job (Optional)
 
@@ -178,11 +183,17 @@ If yes, use the `zopen_create_cicd_job` tool:
 ```json
 {
   "name": "curl",
-  "build_type": "STABLE",
-  "script_name": "zopen_build.sh",
-  "run_after": ""
+  "build_type": "stable",
+  "script_name": "cicd-stable.groovy",
+  "run_after": "yes"
 }
 ```
+
+**Parameters:**
+- `name` (required): Port name without 'port' suffix (e.g., curl, openssl)
+- `build_type` (optional): "stable" or "dev" (default: stable)
+- `script_name` (optional): Groovy script path in repo (default: cicd-stable.groovy)
+- `run_after` (optional): "yes" or "no" to trigger job after creation (default: yes)
 
 ### Step 9: Document Changes
 
