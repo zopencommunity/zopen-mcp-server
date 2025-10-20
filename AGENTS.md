@@ -100,12 +100,13 @@ Apply changes to this source code directly. Do not create patches in the patches
 
 1. **Missing Configure Script**
    - **Symptom**: "configure: not found" or similar
-   - **Solution**: Update the buildenv file to set ZOPEN_CONFIGURE or it's possible that a configure.ac exists and you need to set ZOPEN_BOOTSTRAP="./autogen.sh", which when run will create the configure script.
-   - **Example**: `ZOPEN_CONFIGURE="./Configure"`
+   - **Solution**: Check the project source for a configure.ac script. If configure.ac exists, you need to set ZOPEN_BOOTSTRAP="./autogen.sh", which when run will create the configure script. 
+    If none exists, then set ZOPEN_CONFIGURE="skip" to skip this phase.
 
 2. **Missing Dependencies**
-   - **Symptom**: "library not found" or "header not found"
-   - **Solution**: Determine what library has the dependencies and add to stable_deps in buildenv file. If it's a c runtime library missing header or function, add it to the zoslib library. 
+   - **Symptom**: "library not found" or "header not found" or "fatal error: file not found"
+   - **Solution**: Determine the underlying library that provides the dependencies and check if it is a dependency in buildenv file. 
+If it's a c runtime library missing header or function, add it to the zoslib library. 
 
 3. **EBCDIC/ASCII Issues**
    - **Symptom**: Character encoding errors
