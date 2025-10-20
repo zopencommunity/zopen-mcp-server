@@ -622,8 +622,8 @@ func (t *ZopenTools) ZopenBuildHelp(ctx context.Context, req *mcp.CallToolReques
 // --- ZopenCreateRepo Tool ---
 type ZopenCreateRepoParams struct {
 	Name        string `json:"name"`
-	Description string `json:"description"`
-	User        string `json:"user"`
+	Description string `json:"description,omitempty"`
+	User        string `json:"user,omitempty"`
 }
 
 func (t *ZopenTools) ZopenCreateRepo(ctx context.Context, req *mcp.CallToolRequest, args ZopenCreateRepoParams) (*mcp.CallToolResult, any, error) {
@@ -747,9 +747,9 @@ func (t *ZopenTools) ZopenCreateRepo(ctx context.Context, req *mcp.CallToolReque
 // --- ZopenCreateCicdJob Tool ---
 type ZopenCreateCicdJobParams struct {
 	Name       string `json:"name"`
-	BuildType  string `json:"build_type"`
-	ScriptName string `json:"script_name"`
-	RunAfter   string `json:"run_after"`
+	BuildType  string `json:"build_type,omitempty"`
+	ScriptName string `json:"script_name,omitempty"`
+	RunAfter   string `json:"run_after,omitempty"`
 }
 
 func (t *ZopenTools) ZopenCreateCicdJob(ctx context.Context, req *mcp.CallToolRequest, args ZopenCreateCicdJobParams) (*mcp.CallToolResult, any, error) {

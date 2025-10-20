@@ -286,15 +286,25 @@ GIT_VERSION="2.51.0"
 
 #### 6.3 Update .gitignore to exclude source directories:
 
-   After running `zopen build`, source directories are created that should not be committed to the repository. Update the `.gitignore` file in the port directory to exclude them:
+   After running `zopen build`, source directories are created that should not be committed to the repository. Update the `.gitignore` file in the port directory to exclude them.
 
+   **Check what directory was created:**
+   - Run `ls` or `git status` to see the actual directory name
+   - It will be in the format `<package-name>-<version>/` (e.g., `xorgproto-2024.1/`)
+
+   **Add the pattern to .gitignore:**
    ```
    # Ignore source directories created by zopen build
-   source/
-   source-*/
+   <package-name>-*/
    ```
 
-   This wildcard pattern ensures current and future source directories are ignored when committing to the repository.
+   **Example for xorgproto:**
+   ```
+   # Ignore source directories created by zopen build
+   xorgproto-*/
+   ```
+
+   This wildcard pattern will match the current version and any future versions when you update the port.
 
 ### Step 7: Create Repository (Optional)
 
