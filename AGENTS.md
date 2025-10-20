@@ -331,15 +331,15 @@ If yes, use the `zopen_create_repo` tool:
 
 After creating the repository, when you're ready to commit and push the port project to the zopencommunity organization:
 
-**IMPORTANT: Use git:// protocol instead of https:// for the zopen community port repository.**
+**IMPORTANT: Use SSH protocol (git@) instead of https:// for the zopen community port repository.**
 
 ```bash
 # Initialize git in the port directory if not already done
 cd <name>port
 git init
 
-# Add the remote using git:// protocol (NOT https://)
-git remote add origin git://github.com/zopencommunity/<name>port.git
+# Add the remote using SSH protocol (NOT https://)
+git remote add origin git@github.com:zopencommunity/<name>port.git
 
 # Commit and push changes
 git add .
@@ -347,7 +347,7 @@ git commit -m "Initial port of <name>"
 git push origin main
 ```
 
-**Why git:// protocol?** The git:// protocol is required for pushing to zopencommunity repositories from the z/OS environment.
+**Why SSH protocol?** The SSH protocol (git@github.com:) is required for pushing to zopencommunity repositories from the z/OS environment.
 
 **Note:** Upstream source repositories (stable_url parameter) should continue to use https:// protocol.
 
