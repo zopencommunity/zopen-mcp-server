@@ -73,10 +73,13 @@ func (e *ZopenExecutor) buildSSHCommand(zopenArgs []string) []string {
 	}
 	sshArgs = append(sshArgs, target)
 
-	// Quote arguments for the remote shell
+	// Quote arguments for the remote shell using proper shell escaping
 	var quotedArgs []string
 	for _, arg := range zopenArgs {
-		quotedArgs = append(quotedArgs, fmt.Sprintf(`"%s"`, arg))
+		// Escape single quotes by replacing ' with '\''
+		// Then wrap the entire argument in single quotes
+		escaped := strings.ReplaceAll(arg, `'`, `'\''`)
+		quotedArgs = append(quotedArgs, fmt.Sprintf(`'%s'`, escaped))
 	}
 
 	innerCommand := fmt.Sprintf(". ~/.profile && zopen %s", strings.Join(quotedArgs, " "))
@@ -553,10 +556,13 @@ func (t *ZopenTools) handleZopenCommandInDirectory(ctx context.Context, director
 		}
 		sshArgs = append(sshArgs, target)
 
-		// Quote arguments for the remote shell
+		// Quote arguments for the remote shell using proper shell escaping
 		var quotedArgs []string
 		for _, arg := range zopenArgs {
-			quotedArgs = append(quotedArgs, fmt.Sprintf(`"%s"`, arg))
+			// Escape single quotes by replacing ' with '\''
+			// Then wrap the entire argument in single quotes
+			escaped := strings.ReplaceAll(arg, `'`, `'\''`)
+			quotedArgs = append(quotedArgs, fmt.Sprintf(`'%s'`, escaped))
 		}
 
 		innerCommand := fmt.Sprintf(". ~/.profile && cd %s && zopen %s", directory, strings.Join(quotedArgs, " "))
