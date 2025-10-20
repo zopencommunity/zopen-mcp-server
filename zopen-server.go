@@ -4,6 +4,7 @@ package main
 import (
 	"bytes"
 	"context"
+	_ "embed"
 	"errors"
 	"flag"
 	"fmt"
@@ -15,6 +16,9 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+//go:embed AGENTS.md
+var agentsGuideContent string
 
 // --- Configuration ---
 // Config holds the server's startup configuration, parsed from command-line flags.
@@ -739,6 +743,21 @@ func (t *ZopenGenerateTools) ZopenGenerateListBuildSystems(ctx context.Context, 
 	}, nil, nil
 }
 
+// --- Resource Handlers ---
+
+// ReadAgentsGuide returns the embedded AGENTS.md content as an MCP resource
+func ReadAgentsGuide(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+	return &mcp.ReadResourceResult{
+		Contents: []*mcp.ResourceContents{
+			{
+				URI:      req.Params.URI,
+				MIMEType: "text/markdown",
+				Text:     agentsGuideContent,
+			},
+		},
+	}, nil
+}
+
 // --- Main Server ---
 
 func main() {
@@ -812,6 +831,14 @@ func main() {
 		Name:        "zopen_generate_list_build_systems",
 		Description: "List all valid build systems (returns JSON)",
 	}, genTools.ZopenGenerateListBuildSystems)
+
+	// Register MCP Resources
+	server.AddResource(&mcp.Resource{
+		URI:         "zopen://guides/porting-workflow",
+		Name:        "z/OS Porting Workflow Guide",
+		Description: "Complete step-by-step guide for porting open-source software to z/OS using zopen tools",
+		MIMEType:    "text/markdown",
+	}, ReadAgentsGuide)
 
 	mode := "LOCAL"
 	if config.Remote {
