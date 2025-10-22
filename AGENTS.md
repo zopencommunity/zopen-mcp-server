@@ -24,7 +24,6 @@ Before starting, collect the following information about the project, here on ou
 4. **License** (SPDX identifier). Call zopen_generate_list_licenses to see all valid license identifiers
 5. **Categories** Call zopen_generate_list_categories to see all valid categories
 6. **Build System** Call zopen_generate_list_build_systems to see all valid build systems
-7. **Version Check Regex** (for bump configuration - from Homebrew livecheck)
 
 **Action**: Use `zopen_generate_list_licenses`, `zopen_generate_list_categories`, and `zopen_generate_list_build_systems` to get valid options. Use the brew json information to get the additional data such as source location.
 
@@ -249,6 +248,8 @@ C3270_VERSION="4.4ga6"
 # bump: git-version /GIT_VERSION="(.*)"/ https://github.com/git/git.git|*
 GIT_VERSION="2.51.0"
 ```
+
+**IMPORTANT**: Use `bump --help` for the syntax of the bump line. This is important if the initial attempts are failing. If you get "no version found" then it's you should run this.
 
 **Important Steps After Updating Bump Line:**
 
