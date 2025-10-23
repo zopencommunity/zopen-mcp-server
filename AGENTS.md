@@ -127,6 +127,68 @@ If it's a c runtime library missing header or function, add it to the zoslib lib
    - **Symptom**: Make/CMake errors
    - **Solution**: Customize build flags in buildenv. Use the `zopen_build_help` tool to find out the flags available.
 
+6. **Go Dependency Issues**
+   - **Symptom**: Go dependency compilation errors, missing symbols, platform-specific code in dependencies, CGO-related failures
+   - **Solution**: For Go projects with problematic dependencies, use the Go workspace pattern to clone, patch, and manage dependencies locally.
+
+   **Go Dependency Management Pattern:**
+
+   When a Go dependency fails to build or has z/OS-specific issues, follow this pattern (implemented in the `zopen_wharf()` function):
+
+   1. **Navigate to parent directory** to manage dependencies alongside the main project
+   2. **Clone the problematic dependency** at a specific tag/version
+   3. **Apply patches** from the wharf repository or create custom patches
+   4. **Initialize Go workspace** with all modules using `go work init`
+   5. **Run wharf tool** to process dependencies for z/OS compatibility
+   6. **Return to main project directory** to continue build
+
+   **Example Pattern (from crushport, gitlab-runnerport, gumport):**
+
+   ```bash
+   zopen_wharf() {
+     cd ..  # Navigate to parent directory
+
+     # Clone and patch a dependency
+     DEP_TAG="v1.2.3"
+     git clone https://github.com/example/dependency.git
+     cd dependency && git -c advice.detachedHead=false checkout ${DEP_TAG}
+
+     # Apply patch from wharf repo or local
+     curl -s -o dependency--${DEP_TAG}.patch \
+       "https://raw.githubusercontent.com/ZOSOpenTools/wharf/main/deps-patches/dependency--${DEP_TAG}.patch"
+     git apply -v dependency--${DEP_TAG}.patch
+     cd ..
+
+     # Initialize workspace with main package + dependencies
+     go work init ./packagename ./dependency
+
+     # Run wharf to process dependencies for z/OS
+     wharf ./packagename/...
+
+     # Optional: Clean up module dependencies
+     cd ./packagename && go mod tidy && cd ..
+
+     # Return to main package
+     cd ./packagename
+   }
+   ```
+
+   **Where to find patches:**
+   - Check the wharf repository: `https://raw.githubusercontent.com/ZOSOpenTools/wharf/main/deps-patches/`
+   - Create custom patches if needed and consider contributing them to wharf
+
+   **Reference Examples:**
+   - crushport: https://github.com/zopencommunity/crushport/blob/main/buildenv
+   - gitlab-runnerport: https://github.com/zopencommunity/gitlab-runnerport/blob/main/buildenv
+   - gumport: https://github.com/zopencommunity/gumport/blob/main/buildenv
+
+   **Key Points:**
+   - Always disable CGO unless specifically needed: `export CGO_ENABLED=0`
+   - Unset C/C++ compilers in `zopen_init()`: `unset CC CXX`
+   - Use specific dependency tags/versions for reproducibility
+   - Clean up workspace artifacts in `zopen_clean()`: `rm -rf ../go.work ../go.work.sum ../.wharf_cache`
+   - The `wharf` tool is a z/OS-specific utility for processing Go dependencies
+
 The platform macro for z/OS is __MVS__. You can use this to guard new changes or guard out code to work around issues.
 
 #### Iteration Process:
