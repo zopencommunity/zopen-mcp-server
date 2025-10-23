@@ -53,7 +53,21 @@ Follow the advice provided. Do not use web search.
 - `build_system`: The build system used (e.g., "GNU Make"). This is from the information collected from Step 1. For example for curl, the build deps are in curl https://formulae.brew.sh/api/formula/${PROJECT}.json, where PROJECT is the PROJECT name.
 - `stable_url`: This is the download url. It can be a tarball or a git repo. You can find this information from brew. For example for curl, the build deps are in curl https://formulae.brew.sh/api/formula/${PROJECT}.json, where PROJECT is the PROJECT name. 
 - `build_line`: "stable" or "dev". If unknown, start with "stable".
-- `stable_deps`: Space-delimited list of dependencies. You can find this information from brew. For example for curl, the build deps are in curl https://formulae.brew.sh/api/formula/${PROJECT}.json, where PROJECT is the PROJECT name. Use https://raw.githubusercontent.com/zopencommunity/meta/refs/heads/main/docs/api/zopen_releases_latest.json | jq -r '.release_data | keys[]' to get the names of all existing packages. If you think the stable dependency detected from brew is considered optional, don't include it. Find the equivalent name as some names don't match up correctly. If a build dependency doesn't exist and is required, FAIL and tell the user why.
+- `stable_deps`: Space-delimited list of dependencies. You can find this information from brew. For example for curl, the build deps are in curl https://formulae.brew.sh/api/formula/${PROJECT}.json, where PROJECT is the PROJECT name.
+
+  **IMPORTANT:** You MUST use the EXACT package names from zopen_releases_latest.json. Download and query https://raw.githubusercontent.com/zopencommunity/meta/refs/heads/main/docs/api/zopen_releases_latest.json | jq -r '.release_data | keys[]' to get all available package names.
+
+  **Special Cases - Use the Exact Names:**
+  - For Python dependencies: Use `check_python` (NOT `python`) - this is an IBM product that must be manually installed
+  - For Go compiler: Use `check_go` (NOT `go`) - this is an IBM product that must be manually installed
+  - The `check_*` prefix indicates the package verifies the tool exists and adds it to PATH rather than installing it
+
+  **Mapping Process:**
+  1. Get dependencies from brew JSON
+  2. Query zopen_releases_latest.json for available packages
+  3. Map each brew dependency to its EXACT zopen package name
+  4. If you think the stable dependency detected from brew is considered optional, don't include it
+  5. If a required build dependency doesn't exist in zopen, FAIL and tell the user why
 - `dev_deps`: Development dependencies. Typically this is the same as the stable_deps.
 - `force`: true to overwrite existing project. 
 
@@ -112,8 +126,9 @@ Apply changes to this source code directly. Do not create patches in the patches
 
 2. **Missing Dependencies**
    - **Symptom**: "library not found" or "header not found" or "fatal error: file not found"
-   - **Solution**: Determine the underlying library that provides the dependencies and check if it is a dependency in buildenv file. 
-If it's a c runtime library missing header or function, add it to the zoslib library. 
+   - **Solution**: Determine the underlying library that provides the dependencies and check if it is a dependency in buildenv file.
+   - Query https://raw.githubusercontent.com/zopencommunity/meta/refs/heads/main/docs/api/zopen_releases_latest.json for available packages and use the EXACT package name (e.g., `check_python` not `python`)
+   - If it's a c runtime library missing header or function, add it to the zoslib library. 
 
 3. **EBCDIC/ASCII Issues**
    - **Symptom**: Character encoding errors
@@ -550,7 +565,8 @@ z/OS does not have a comprehensive debugger like GDB. Use these techniques:
 
 **Q: Dependencies not found**
 - Download and inspect https://raw.githubusercontent.com/zopencommunity/meta/refs/heads/main/docs/api/zopen_releases_latest.json | jq -r '.release_data | keys[]' for all zopen available packages
-- Add to stable_deps 
+- Use the EXACT package name from this list (e.g., `check_python` not `python`, `check_go` not `go`)
+- Add to stable_deps using the exact names 
 
 **Q: Project information is not found through brew. What should I do**
 - Do a web search for the project. But always check brew first.
