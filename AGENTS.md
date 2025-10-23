@@ -349,25 +349,30 @@ GIT_VERSION="2.51.0"
 
 #### 6.3 Update .gitignore to exclude source directories:
 
-   After running `zopen build`, source directories are created that should not be committed to the repository. Update the `.gitignore` file in the port directory to exclude them.
+   After running `zopen build`, source directories are created that should not be committed to the repository. Append the source directory pattern to the `.gitignore` file in the port directory to exclude them.
 
    **Check what directory was created:**
    - Run `ls` or `git status` to see the actual directory name
    - It will be in the format `<package-name>-<version>/` (e.g., `xorgproto-2024.1/`)
 
-   **Add the pattern to .gitignore:**
-   ```
-   # Ignore source directories created by zopen build
-   <package-name>-*/
+   **Append the pattern to .gitignore:**
+   ```bash
+   # Use >> to append (not overwrite) to .gitignore
+   echo "" >> .gitignore
+   echo "# Ignore source directories created by zopen build" >> .gitignore
+   echo "<package-name>-*/" >> .gitignore
    ```
 
    **Example for xorgproto:**
-   ```
-   # Ignore source directories created by zopen build
-   xorgproto-*/
+   ```bash
+   echo "" >> .gitignore
+   echo "# Ignore source directories created by zopen build" >> .gitignore
+   echo "xorgproto-*/" >> .gitignore
    ```
 
    This wildcard pattern will match the current version and any future versions when you update the port.
+
+   **Important:** Always use `>>` (append) instead of `>` (overwrite) to preserve existing .gitignore entries.
 
 ### Step 7: Create Repository (Optional)
 
@@ -416,7 +421,9 @@ git push origin main
 
 ### Step 8: Create CI/CD Job (Optional)
 
-After creating the repository, ask the user if they want to create a Jenkins CI/CD job.
+After creating the repository and pushing the code to it (as shown in Step 7), ask the user if they want to create a Jenkins CI/CD job.
+
+**Important:** Ensure the port code has been committed and pushed to the remote repository before creating the CI/CD job, as the Jenkins job will clone from the repository.
 
 If yes, use the `zopen_create_cicd_job` tool:
 
