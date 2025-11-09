@@ -1,4 +1,4 @@
-# Claude Instructions for z/OS Software Porting
+# Instructions for z/OS Software Porting
 
 This document provides step-by-step instructions to port open-source software to z/OS.
 
