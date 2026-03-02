@@ -1,256 +1,193 @@
-# Instructions for z/OS Software Porting
+# z/OS Porting Guide (CLI-First)
 
-This document provides step-by-step instructions to port open-source software to z/OS.
+This guide describes a practical workflow for porting open-source software to z/OS using local `zopen-*` CLI commands.
 
-## Overview
+## Core Rules
 
-You have access to zopen tools through MCP that allow you to:
-- Generate zopen-compatible project structures
-- Build projects on z/OS
-- Query package information
-- Install and manage z/OS packages
-- All zopen tools are compiled with UTF8/ASCII mode turned on. Enhanced Auto-Conversion is enabled meaning files are auto-converted based on the file tag (ccsid) to ASCII / UTF8.
-- The library zoslib is used in all C and C++ projects to bridge the gap between z/OS LE runtime environment and the Linux C runtime. Source is here: https://github.com/ibmruntimes/zoslib/tree/zopen2
+1. Use local CLI commands directly (`zopen-generate`, `zopen-build`, etc.). Do not rely on MCP wrapper command names.
+2. Use `--help` as the source of truth for flags/syntax in your installed version.
+3. Prefer Homebrew formula metadata and upstream project metadata first. Use web search only as fallback.
+4. Do not create patch files in `patches/` until the build succeeds.
 
-## Porting to z/OS Workflow
-
-### Step 1: Gather Project Information
-
-Before starting, collect the following information about the project, here on out referred to as ${PROJECT}.
-
-1. **Project Name** (lowercase, no spaces)
-2. **Description** (brief, one-sentence summary)
-3. **Repository URL** (GitHub or other git repository)
-4. **License** (SPDX identifier). Call zopen_generate_list_licenses to see all valid license identifiers
-5. **Categories** Call zopen_generate_list_categories to see all valid categories
-6. **Build System** Call zopen_generate_list_build_systems to see all valid build systems. 
-
-**Action**: Use `zopen_generate_list_licenses`, `zopen_generate_list_categories`, and `zopen_generate_list_build_systems` to get valid options. Use the brew json information to get the additional data such as source location.
-
-**Getting Version Check Regex from Homebrew:**
-- From the brew JSON (e.g., `https://formulae.brew.sh/api/formula/${PROJECT}.json`), get the `ruby_source_path` field
-- Construct the Homebrew formula URL: `https://raw.githubusercontent.com/Homebrew/homebrew-core/refs/heads/main/{ruby_source_path}`
-- Example: `ruby_source_path: "Formula/m/midnight-commander.rb"` → `https://raw.githubusercontent.com/Homebrew/homebrew-core/refs/heads/main/Formula/m/midnight-commander.rb`
-- Fetch the formula file and look for the `livecheck` block which contains the version detection regex
-- Save this regex for later use in configuring the bump line (Step 6.2)
-
-**Find Similar Projects**: After detecting the tool, find a similar tool from `https://raw.githubusercontent.com/zopencommunity/meta/refs/heads/main/docs/api/zopen_releases_latest.json` for reference. Use the buildenv from that similar project as context, e.g., `https://github.com/zopencommunity/curlport/blob/main/buildenv`.
-
-### Step 2: Generate the zopen Project
-
-Use the `zopen_generate` tool to create the project structure.
-
-Before proceeding to the `zopen_generate` step, ensure that ${PROJECT}port directory does not exist. If it does exist, notify the user and ask the user if they want to proceed.
-
-Follow the advice provided. Do not use web search.
-
-**Required Parameters:**
-- `name`: Package name (lowercase)
-- `description`: Brief description. It can be a tarball or a git repo. You can find this information from brew. For example for curl, the build deps are in curl https://formulae.brew.sh/api/formula/${PROJECT}.json, where PROJECT is the PROJECT name
-- `categories`: Space-delimited categories.  This is from the information collected from Step 1.
-- `license`: SPDX license identifier (or "unknown"). This is from the information collected from Step 1.
-- `type`: "BUILD" (build from source) or "BARE" (binary download). If there is a build system used, go with BUILD
-- `build_system`: The build system used. This is from the information collected from Step 1. For example for curl, the build deps are in curl https://formulae.brew.sh/api/formula/${PROJECT}.json, where PROJECT is the PROJECT name. IMPORTANT: If the project is Go based, pass "Go" instead of "GNU Make" as the build system because go build and go install can be used.
-- `stable_url`: This is the download url. It can be a tarball or a git repo. You can find this information from brew. For example for curl, the build deps are in curl https://formulae.brew.sh/api/formula/${PROJECT}.json, where PROJECT is the PROJECT name. 
-- `build_line`: "stable" or "dev". If unknown, start with "stable".
-- `stable_deps`: Space-delimited list of dependencies. You can find this information from brew. For example for curl, the build deps are in curl https://formulae.brew.sh/api/formula/${PROJECT}.json, where PROJECT is the PROJECT name. If cmake is specified, add make as well.
-
-  **IMPORTANT:** You MUST use the EXACT package names from zopen_releases_latest.json. Download and query https://raw.githubusercontent.com/zopencommunity/meta/refs/heads/main/docs/api/zopen_releases_latest.json | jq -r '.release_data | keys[]' to get all available package names.
-
-  **Special Cases - Use the Exact Names:**
-  - For Python dependencies: Use `check_python` (NOT `python`) - this is an IBM product that must be manually installed
-  - For Go compiler: Use `check_go` (NOT `go`) - this is an IBM product that must be manually installed
-  - The `check_*` prefix indicates the package verifies the tool exists and adds it to PATH rather than installing it
-
-  **Mapping Process:**
-  1. Get dependencies from brew JSON
-  2. Query zopen_releases_latest.json for available packages
-  3. Map each brew dependency to its EXACT zopen package name
-  4. If you think the stable dependency detected from brew is considered optional, don't include it
-  5. If a required build dependency doesn't exist in zopen, FAIL and tell the user why
-- `dev_deps`: Development dependencies. Typically this is the same as the stable_deps.
-- `force`: true to overwrite existing project. 
-
-**Optional Parameters:**
-- `runtime_deps`: Runtime dependencies
-
-```json
-Example call:
-{
-  "name": "openssl",
-  "description": "OpenSSL is a robust, commercial-grade toolkit for TLS/SSL protocols",
-  "categories": "security networking",
-  "license": "Apache-2.0",
-  "type": "BUILD",
-  "build_system": "GNU Make",
-  "stable_url": "https://github.com/openssl/openssl.git",
-  "build_line": "stable"
-  "stable_deps": "make autoconf"
-}
-```
-
-### Step 3: Build the Project
-
-Use the `zopen_build` tool to compile the project.
-
-**Parameters:**
-- `directory`: The path to the generated project directory (typically `<name>port`)
-- `verbose`: true for detailed build output
-
-```json
-Example call:
-{
-  "directory": "./opensslport",
-  "verbose": true
-}
-```
-
-**Expected Outcomes:**
-- ✅ **Success**: Build completes without errors
-- ❌ **Failure**: Build fails with error messages
-
-### Step 4: Handle Build Failures
-
-If the build fails, analyze the error messages.
-
-If zopen build gets past the initial, it will create a directory containing the project source code.
-
-Apply changes to this source code directly. Do not create patches in the patches/ directory until after a successful build.
-
-#### Common z/OS Build Issues:
-
-1. **Missing Configure Script**
-   - **Symptom**: "configure: not found" or similar
-   - **Solution**: Check the project source for a configure.ac script. If configure.ac exists, you need to set ZOPEN_BOOTSTRAP="./autogen.sh", which when run will create the configure script. 
-    If none exists, then set ZOPEN_CONFIGURE="skip" to skip this phase.
-
-2. **Missing Dependencies**
-   - **Symptom**: "library not found" or "header not found" or "fatal error: file not found"
-   - **Solution**: Determine the underlying library that provides the dependencies and check if it is a dependency in buildenv file.
-   - Query https://raw.githubusercontent.com/zopencommunity/meta/refs/heads/main/docs/api/zopen_releases_latest.json for available packages and use the EXACT package name (e.g., `check_python` not `python`)
-   - If it's a c runtime library missing header or function, add it to the zoslib library. 
-   - If flex is needed, then also add m4 as a dependency right before flex.
-
-3. **EBCDIC/ASCII Issues**
-   - **Symptom**: Character encoding errors
-   - **Solution**: May require source code changes such as tagging of file descriptors to enable auto-conversion.
-
-4. **Platform-Specific Code**
-   - **Symptom**: References to unsupported syscalls or APIs
-   - **Solution**: Modify source. Apply workaround solution.
-
-5. **Build System Issues**
-   - **Symptom**: Make/CMake errors
-   - **Solution**: Customize build flags in buildenv. Use the `zopen_build_help` tool to find out the flags available.
-
-6. **Missing functions**
-   - If a function like alphasort is missing, then implement it in the source code. Create patches at the end
-   - If O_NOFOLLOW or similar are missing, pass `-D__XPLAT` to the ZOPEN_EXTRA_CPPFLAGS in the buildenv. You will need to build `zopen_build` with force true.
-
-6. **Go Dependency Issues**
-   - **Symptom**: Go dependency compilation errors, missing symbols, platform-specific code in dependencies, CGO-related failures
-   - **Solution**: For Go projects with problematic dependencies, use the Go workspace pattern to clone, patch, and manage dependencies locally.
-
-   **Go Dependency Management Pattern:**
-
-   When a Go dependency fails to build or has z/OS-specific issues, follow this pattern (implemented in the `zopen_wharf()` function):
-
-   1. **Navigate to parent directory** to manage dependencies alongside the main project
-   2. **Clone the problematic dependency** at a specific tag/version
-   3. **Apply patches** from the wharf repository or create custom patches
-   4. **Initialize Go workspace** with all modules using `go work init`
-   5. **Run wharf tool** to process dependencies for z/OS compatibility
-   6. **Return to main project directory** to continue build
-
-   **Example Pattern (from crushport, gitlab-runnerport, gumport):**
-
-   ```bash
-   zopen_wharf() {
-     cd ..  # Navigate to parent directory
-
-     # Clone and patch a dependency
-     DEP_TAG="v1.2.3"
-     git clone https://github.com/example/dependency.git
-     cd dependency && git -c advice.detachedHead=false checkout ${DEP_TAG}
-
-     # Apply patch from wharf repo or local
-     curl -s -o dependency--${DEP_TAG}.patch \
-       "https://raw.githubusercontent.com/ZOSOpenTools/wharf/main/deps-patches/dependency--${DEP_TAG}.patch"
-     git apply -v dependency--${DEP_TAG}.patch
-     cd ..
-
-     # Initialize workspace with main package + dependencies
-     go work init ./packagename ./dependency
-
-     # Run wharf to process dependencies for z/OS
-     wharf ./packagename/...
-
-     # Optional: Clean up module dependencies
-     cd ./packagename && go mod tidy && cd ..
-
-     # Return to main package
-     cd ./packagename
-   }
-   ```
-
-   **Where to find patches:**
-   - Check the wharf repository: `https://raw.githubusercontent.com/ZOSOpenTools/wharf/main/deps-patches/`
-   - Create custom patches if needed and consider contributing them to wharf
-
-   **Reference Examples:**
-   - crushport: https://github.com/zopencommunity/crushport/blob/main/buildenv
-   - gitlab-runnerport: https://github.com/zopencommunity/gitlab-runnerport/blob/main/buildenv
-   - gumport: https://github.com/zopencommunity/gumport/blob/main/buildenv
-
-   **Key Points:**
-   - Always disable CGO unless specifically needed: `export CGO_ENABLED=0`
-   - Unset C/C++ compilers in `zopen_init()`: `unset CC CXX`
-   - Use specific dependency tags/versions for reproducibility
-   - Clean up workspace artifacts in `zopen_clean()`: `rm -rf ../go.work ../go.work.sum ../.wharf_cache`
-   - The `wharf` tool is a z/OS-specific utility for processing Go dependencies
-
-The platform macro for z/OS is __MVS__. You can use this to guard new changes or guard out code to work around issues.
-
-#### Iteration Process:
-
-1. Read the build error log carefully
-2. Identify the root cause
-3. Apply fixes (update buildenv, modify source, add dependencies)
-4. Re-run `zopen_build`
-5. Repeat until successful
-6. After a successful build, create the patch in the patches dir from the modified source using git diff HEAD > ../patches/PR1.patch
-
-### Step 5: Post-Build Configuration
-
-After a successful build, perform these configuration tasks:
-
-#### 5.1 Verify Installation
-
-1. Use `zopen_info` to check package details
-2. Test the built binaries
-3. Verify dependencies are correctly listed
-
-#### 5.2 Verify Bump Line Configuration
-
-Check the bump line at the top of the buildenv file to ensure version tracking is properly configured. This enables automatic version checking.
-
-**Action:** Verify the bump line matches your project's version source (tarball URL or git repository). See **Step 6.2** for detailed bump line configuration.
-
-#### 5.3 Update zopen_append_to_env for Libraries/Headers
-
-If the project provides libraries or header files that other ports may depend on, you **must** uncomment and update the `zopen_append_to_env` function in the buildenv file.
-
-**Check if your project provides:**
-- Libraries (`.so`, `.a` files) in a `lib/` directory
-- Header files (`.h`, `.hpp` files) in an `include/` directory
-
-**If yes, update the buildenv file:**
-
-1. Locate the commented `zopen_append_to_env` function in buildenv
-2. Uncomment it and update the library name:
+## Preflight
 
 ```bash
-# For libraries, this hook exports variables for other ports to use.
+command -v zopen-generate zopen-build zopen-info zopen-query zopen-version jq git bump
+zopen-generate --help
+zopen-build --help
+zopen-info --help
+zopen-version || zopen-version --help
+```
+
+If a command reports `Source the zopen-config prior to running ...`, source zopen config first, then rerun.
+
+## Quickstart (Happy Path)
+
+1. Collect metadata and valid values:
+```bash
+zopen-generate --list-licenses
+zopen-generate --list-categories
+zopen-generate --list-build-systems
+curl -s "https://formulae.brew.sh/api/formula/${PROJECT}.json" | jq .
+```
+2. Map dependencies to exact zopen names:
+```bash
+curl -s https://raw.githubusercontent.com/zopencommunity/meta/refs/heads/main/docs/api/zopen_releases_latest.json \
+  | jq -r '.release_data | keys[]' | sort
+```
+3. Generate project:
+```bash
+zopen-generate \
+  --name <name> \
+  --description "<description>" \
+  --categories "<cat1 cat2>" \
+  --license <spdx_or_unknown> \
+  --type BUILD \
+  --build-system "<GNU Make|CMake|Go|Gradle|Maven|Meson|Python>" \
+  --stable-url "<url>" \
+  --stable-deps "<dep1 dep2>" \
+  --build-line stable \
+  --dev-deps "<dep1 dep2>" \
+  --non-interactive
+```
+4. Build:
+```bash
+cd <name>port
+zopen-build -v
+```
+5. Iterate on failures until success.
+6. After success, create patch + finalize buildenv/bump/.gitignore.
+
+## Detailed Workflow
+
+### 1. Gather Project Information
+
+Collect:
+1. Project name (lowercase, no spaces)
+2. One-line description
+3. Repository URL
+4. SPDX license
+5. Categories
+6. Build system
+7. Stable source URL and dependencies
+
+Use Homebrew formula JSON for source/dependency hints:
+- `https://formulae.brew.sh/api/formula/${PROJECT}.json`
+
+Find similar existing ports for reference (especially `buildenv` patterns):
+- `https://raw.githubusercontent.com/zopencommunity/meta/refs/heads/main/docs/api/zopen_releases_latest.json`
+- `https://github.com/zopencommunity/<similarport>/blob/main/buildenv`
+
+### 2. Map Dependencies (Strict)
+
+You must map dependencies to exact package names from `zopen_releases_latest.json`.
+
+Rules:
+1. Start with brew dependencies.
+2. Map each dependency to exact zopen package name.
+3. Keep required dependencies only.
+4. If a required build dependency is missing in zopen package list, fail and explain why.
+
+Special names:
+- Python runtime/compiler checks: `check_python` (not `python`)
+- Go compiler checks: `check_go` (not `go`)
+
+Additional rule:
+- If `flex` is needed, add `m4` before `flex`.
+- If `cmake` is needed, add `make` as a dependency as well.
+
+### 3. Generate Port Skeleton
+
+Before generating, confirm `<name>port` does not already exist. If it exists, ask whether to proceed.
+
+Required generation flags:
+- `--name`
+- `--description`
+- `--categories`
+- `--license`
+- `--type`
+- `--build-system`
+- `--stable-url`
+- `--stable-deps`
+- `--build-line`
+
+Optional generation flags:
+- `--dev-url`
+- `--dev-deps`
+- `--runtime-deps`
+- `--force` (if regenerating existing directory)
+
+Notes:
+- For Go-based projects, use `--build-system Go`.
+- Default to `--build-line stable` unless there is a strong reason to start with dev.
+- Keep upstream source URLs (`--stable-url` / `--dev-url`) as `https://` URLs.
+
+### 4. Build
+
+Run from project directory:
+```bash
+cd <name>port
+zopen-build -v
+```
+
+Useful build flags:
+- `--build stable|dev`
+- `-f, --force-rebuild` when you need bootstrap/configure rerun
+- `-g, --get-source` if you only need source + patch apply
+
+### 5. Failure Loop
+
+If build fails:
+1. Read latest logs in `log.STABLE` or `log.DEV`.
+2. Identify root cause.
+3. Modify source or `buildenv`.
+4. Re-run `zopen-build -v`.
+5. Repeat until success.
+
+Important:
+- Once source is extracted by build, edit source directly first.
+- Do not create `patches/PR*.patch` until build succeeds.
+
+### 6. Common Failure Patterns
+
+1. `configure: not found`
+- If `configure.ac` exists: set `ZOPEN_BOOTSTRAP` (for example `./autogen.sh`).
+- If project has no configure step: set `ZOPEN_CONFIGURE="skip"`.
+
+2. Missing headers/libraries
+- Add missing dependency in buildenv using exact zopen package names.
+- For C runtime compatibility gaps, evaluate `zoslib` or guarded source changes.
+
+3. Platform-specific APIs/syscalls missing
+- Guard with `#ifdef __MVS__` and provide z/OS-safe path.
+
+4. Missing functions/macros
+- Implement missing function in source when appropriate.
+- For `O_NOFOLLOW`-style macro gaps, add `-D__XPLAT` to `ZOPEN_EXTRA_CPPFLAGS` and rebuild (`-f` when needed).
+
+5. Encoding issues (EBCDIC/ASCII)
+- Apply source/runtime changes for tagging/auto-conversion where required.
+
+6. Build-system flag tuning
+- Add `ZOPEN_EXTRA_CFLAGS`, `ZOPEN_EXTRA_CXXFLAGS`, `ZOPEN_EXTRA_CPPFLAGS`, `ZOPEN_EXTRA_LDFLAGS`, `ZOPEN_EXTRA_LIBS` as needed.
+
+### 7. Post-Success Finalization
+
+After successful build:
+
+1. Create patch from modified source:
+```bash
+# from extracted source directory inside <name>port
+git diff HEAD > ../patches/PR1.patch
+```
+
+2. Verify package info and smoke-test binaries:
+```bash
+zopen-info <name>
+```
+
+3. If port produces libs/headers for downstream ports, update `zopen_append_to_env` in `buildenv`:
+```bash
 zopen_append_to_env() {
   cat <<END
 if [ ! -z "\$ZOPEN_IN_ZOPEN_BUILD" ]; then
@@ -263,335 +200,149 @@ END
 }
 ```
 
-**Replace `<library_name>`** with the actual library name (without `lib` prefix or file extension).
-
-**Example:** If the library is `libcurl.so`, use `-lcurl`:
+4. Update versioning/bump configuration in `buildenv`:
+- Set version variable (VRM).
+- Ensure bump line matches source style (tarball/git).
+- Use version variable in `ZOPEN_STABLE_URL` or `ZOPEN_STABLE_TAG`.
+- Ensure `zopen_get_version()` returns that variable.
+- Validate:
 ```bash
-export ZOPEN_EXTRA_LIBS="\${ZOPEN_EXTRA_LIBS} -lcurl"
+bump --help
+bump current buildenv
+bump check buildenv
 ```
 
-**When to skip:** If the project only provides executables/binaries (no libraries), leave this function commented out.
+5. Update `.gitignore` to ignore extracted source dirs:
+```bash
+echo "" >> .gitignore
+echo "# Ignore source directories created by zopen-build" >> .gitignore
+echo "<package-name>-*/" >> .gitignore
+```
 
-### Step 6: Update buildenv with Version Information
+6. Document changes in `patches/README.md`:
+- source modifications
+- buildenv customizations
+- dependencies added
+- known limitations
 
-After a successful build:
+## Bump Line Guidance (Condensed)
 
-#### 6.1 Update VRM (Version-Release-Modification)
-
-Update the buildenv file with the correct version information.
-
-#### 6.2 Verify and Update Bump Line
-
-The bump line at the top of the buildenv file enables automatic version checking using the [bump tool](https://github.com/wader/bump). Verify and update it to match your project's version tracking.
-
-**Finding Version Check Regex from Homebrew:**
-
-You can leverage the livecheck regex from Homebrew formulas:
-
-1. Get the `ruby_source_path` from the brew JSON (e.g., `https://formulae.brew.sh/api/formula/${PROJECT}.json`)
-2. Construct the formula URL: `https://raw.githubusercontent.com/Homebrew/homebrew-core/refs/heads/main/{ruby_source_path}`
-3. Fetch the formula file and look for the `livecheck` block, which contains the version regex
-4. Adapt the regex for use with bump
-
-**Example:**
-- Brew JSON: `https://formulae.brew.sh/api/formula/midnight-commander.json`
-- Field: `"ruby_source_path": "Formula/m/midnight-commander.rb"`
-- Formula URL: `https://raw.githubusercontent.com/Homebrew/homebrew-core/refs/heads/main/Formula/m/midnight-commander.rb`
-- Fetch this file and look for the livecheck block, which contains the version detection regex that can be adapted for bump
-
-**Bump Line Format:**
-
-For **tarball URLs**:
+Tarball style:
 ```bash
 # bump: <package>-version /<VAR_NAME>="(.*)"/ <stable_url_with_version>|semver:*
-# <VAR_NAME>="V.R.M"
+<VAR_NAME>="V.R.M"
 ```
 
-For **git repositories**:
+Git style:
 ```bash
 # bump: <package>-version /<VAR_NAME>="(.*)"/ git:<repo_url>|semver:*
-# <VAR_NAME>="V.R.M"
+<VAR_NAME>="V.R.M"
 ```
 
-**Example for HTML directory listing with capture group:**
+Use Homebrew `livecheck` regex as input when available:
+1. Read brew JSON `ruby_source_path`.
+2. Fetch formula file from homebrew-core.
+3. Extract/adapt `livecheck` regex for bump.
+
+## Go Dependency Strategy (When Needed)
+
+For failing Go dependencies:
+1. Clone problematic dependency beside main project.
+2. Check out fixed tag/version.
+3. Apply wharf patch (or local patch).
+4. Create `go work` including main project + patched dependency.
+5. Run `wharf ./<project>/...`.
+6. Return to main project and continue build.
+
+Key defaults for Go ports:
+- `export CGO_ENABLED=0` unless required otherwise.
+- In `zopen_init()`, unset `CC`/`CXX` when appropriate.
+- Clean workspace artifacts in `zopen_clean()`.
+
+References:
+- `https://raw.githubusercontent.com/ZOSOpenTools/wharf/main/deps-patches/`
+- `https://github.com/zopencommunity/crushport/blob/main/buildenv`
+- `https://github.com/zopencommunity/gitlab-runnerport/blob/main/buildenv`
+- `https://github.com/zopencommunity/gumport/blob/main/buildenv`
+
+## Optional: Create Repo and CI Job
+
+After successful local porting and verification:
+
+Prerequisites:
+- These steps are for core contributors with appropriate permissions.
+- `zopen-create-repo` requires GitHub CLI (`gh`) and token auth (`GITHUB_TOKEN` or `--github-token`).
+
+1. Ask the user whether to create a GitHub repository now.
+2. Create repository (core contributors/admins):
 ```bash
-# bump: bash-version /BASH_VERSION="(.*)"/ https://ftp.gnu.org/gnu/bash/|re:/href="bash-([\d.]+).tar.gz"/$1/|semver:*
-BASH_VERSION="5.3"
+zopen-create-repo --help
+zopen-create-repo -n <name> -d "zopen port of <name>"
 ```
 
-**Example for HTML directory listing without capture group:**
+3. Push code using SSH remote:
 ```bash
-# bump: c3270-version /C3270_VERSION="(.*)"/ https://sourceforge.net/projects/x3270/files/x3270/|re:/Click.to.enter.([\d.]+g?a?\d+)"/
-C3270_VERSION="4.4ga6"
-```
-
-**Example for git repository:**
-```bash
-# bump: git-version /GIT_VERSION="(.*)"/ https://github.com/git/git.git|*
-GIT_VERSION="2.51.0"
-```
-
-**IMPORTANT**: Use `bump --help` for the syntax of the bump line. This is important if the initial attempts are failing. If you get "no version found" then it's you should run this.
-
-**Important Steps After Updating Bump Line:**
-
-1. **Update ZOPEN_STABLE_URL or ZOPEN_STABLE_TAG to use the version variable:**
-   ```bash
-   # For tarball URLs:
-   export ZOPEN_STABLE_URL="https://example.com/package-${PACKAGE_VERSION}.tar.gz"
-
-   # For git repositories:
-   export ZOPEN_STABLE_TAG="v${PACKAGE_VERSION}"
-   ```
-
-2. **Update zopen_get_version() function:**
-   ```bash
-   zopen_get_version() {
-     echo "$PACKAGE_VERSION"  # Use your version variable name
-   }
-   ```
-
-3. **Verify bump works:**
-   ```bash
-   bump current buildenv  # Show current version (should match your PACKAGE_VERSION)
-   bump check buildenv    # Check for newer versions
-   ```
-
-**Bump Line Syntax Notes:**
-- The version variable name must match the regex pattern (e.g., `BASH_VERSION` matches `/BASH_VERSION="(.*)"/`)
-- For HTML directory listings: Use `|re:/regex/` to extract version from HTML
-  - The regex should match the content in the HTML
-  - Use `[\d.]+` to match standard versions, add custom patterns like `g?a?\d+` for suffixes
-  - Can use `/$1/` capture group syntax (e.g., bash example) or extract match automatically (e.g., c3270 example)
-  - Pattern: `|re:/href="package-([\d.]+).tar.gz"/$1/|semver:*` or `|re:/Click.to.enter.([\d.]+)"/`
-- For git repositories: Use `git.git|*` format (the `|*` matches all tags)
-- Always verify with `bump current buildenv` then `bump check buildenv` after updating
-
-#### 6.3 Update .gitignore to exclude source directories:
-
-   After running `zopen build`, source directories are created that should not be committed to the repository. Append the source directory pattern to the `.gitignore` file in the port directory to exclude them.
-
-   **Check what directory was created:**
-   - Run `ls` or `git status` to see the actual directory name
-   - It will be in the format `<package-name>-<version>/` (e.g., `xorgproto-2024.1/`)
-
-   **Append the pattern to .gitignore:**
-   ```bash
-   # Use >> to append (not overwrite) to .gitignore
-   echo "" >> .gitignore
-   echo "# Ignore source directories created by zopen build" >> .gitignore
-   echo "<package-name>-*/" >> .gitignore
-   ```
-
-   **Example for xorgproto:**
-   ```bash
-   echo "" >> .gitignore
-   echo "# Ignore source directories created by zopen build" >> .gitignore
-   echo "xorgproto-*/" >> .gitignore
-   ```
-
-   This wildcard pattern will match the current version and any future versions when you update the port.
-
-   **Important:** Always use `>>` (append) instead of `>` (overwrite) to preserve existing .gitignore entries.
-
-### Step 7: Create Repository (Optional)
-
-Upon successful build and verification, ask the user if they want to create a GitHub repository for the port.
-
-If yes, use the `zopen_create_repo` tool:
-
-```json
-{
-  "name": "curl",
-  "description": "Command line tool for transferring data with URLs",
-  "user": "username"
-}
-```
-
-**Parameters:**
-- `name` (required): Port name without 'port' suffix (e.g., curl, openssl)
-- `description` (optional): Repository description (default: 'zopen port of <name>')
-- `user` (optional): GitHub username to assign as admin
-
-**Note**: This tool is only for core contributors with admin permissions in the zopencommunity organization. GitHub token must be set via GITHUB_TOKEN environment variable.
-
-#### Setting Up Git Remote for the Port Repository
-
-After creating the repository, when you're ready to commit and push the port project to the zopencommunity organization:
-
-**IMPORTANT: Use SSH protocol (git@) instead of https:// for the zopen community port repository.**
-
-```bash
-# Initialize git in the port directory if not already done
 cd <name>port
 git init
-
-# Add the remote using SSH protocol (NOT https://)
 git remote add origin git@github.com:zopencommunity/<name>port.git
-
-# Commit and push changes
 git add .
 git commit -m "Initial port of <name>"
 git push origin main
 ```
 
-**Why SSH protocol?** The SSH protocol (git@github.com:) is required for pushing to zopencommunity repositories from the z/OS environment.
-
-**Note:** Upstream source repositories (stable_url parameter) should continue to use https:// protocol.
-
-### Step 8: Create CI/CD Job (Optional)
-
-After creating the repository and pushing the code to it (as shown in Step 7), ask the user if they want to create a Jenkins CI/CD job.
-
-**Important:** Ensure the port code has been committed and pushed to the remote repository before creating the CI/CD job, as the Jenkins job will clone from the repository.
-
-If yes, use the `zopen_create_cicd_job` tool:
-
-```json
-{
-  "name": "curl",
-  "build_type": "stable",
-  "script_name": "cicd-stable.groovy",
-  "run_after": "yes"
-}
+4. Ask the user whether to create a Jenkins CI job now.
+5. Create Jenkins CI job:
+```bash
+zopen-create-cicd-job --help
+zopen-create-cicd-job -n <name> -b stable -s cicd-stable.groovy -r yes
 ```
 
-**Parameters:**
-- `name` (required): Port name without 'port' suffix (e.g., curl, openssl)
-- `build_type` (optional): "stable" or "dev" (default: stable)
-- `script_name` (optional): Groovy script path in repo (default: cicd-stable.groovy)
-- `run_after` (optional): "yes" or "no" to trigger job after creation (default: yes)
+## Build Analysis Shortcut
 
-### Step 9: Document Changes
-
-Keep track of:
-- Any source code modifications
-- buildenv customizations
-- Dependencies added
-- Known issues or limitations
-Create a README.md file in the patches directory
-
-## Helper Tools
-
-### Query Package Information
-
-- Download and inspect https://raw.githubusercontent.com/zopencommunity/meta/refs/heads/main/docs/api/zopen_releases_latest.json | jq -r '.release_data | keys[]' for all zopen available packages
-- `zopen_info`: Detailed information about a package
-
-### Environment
-
-- `zopen_version`: Check zopen version
-
-## Build Analysis
-
-If the user asks to analyze a problem for a project, skip directly to build analysis:
-
-1. Look in the `log.STABLE` or `log.DEV` directories for the latest log files
-2. Analyze the error messages in the logs
-3. Identify the root cause of the failure
-4. Suggest fixes based on the analysis
+If user asks only for failure analysis:
+1. Read latest files in `log.STABLE`/`log.DEV`.
+2. Identify root cause.
+3. Propose concrete fixes.
 
 ## Debugging on z/OS
 
-z/OS does not have a comprehensive debugger like GDB. Use these techniques:
+Use low-friction techniques:
 
-1. **fprintf statements**: Inject `fprintf(stderr, "Debug: variable=%d\n", var);` statements to trace execution
-2. **__display_backtrace**: Use z/OS-specific backtrace function to emit stack traces:
-   ```c
-   #ifdef __MVS__
-   __display_backtrace(2);  // Emits stacktrace to screen
-   #endif
-   ```
+```c
+fprintf(stderr, "Debug: var=%d\n", var);
 
-## Best Practices
-
-1. **Always query valid options first**: Use the list tools to ensure you're using valid licenses, categories, and build systems
-
-2. **Start with minimal configuration**: Begin with just the required parameters, add complexity as needed
-
-3. **Use verbose mode**: When debugging build issues, always use `verbose: true`
-
-4. **Check existing ports**: Use `zopen_query` to see if similar packages exist for reference
-
-5. **Document dependencies**: Clearly list all runtime and build dependencies
-
-6. **Test incrementally**: After each fix, rebuild to verify the change works
-
-7. **Follow z/OS conventions**: Use lowercase package names, follow existing patterns
-
-## Example: Complete Porting Session
-
-```
-1. Query valid options:
-   - zopen_generate_list_licenses
-   - zopen_generate_list_categories
-   - zopen_generate_list_build_systems
-
-2. Generate project:
-   zopen_generate({
-     "name": "curl",
-     "description": "Command line tool for transferring data with URLs",
-     "categories": "networking development",
-     "license": "MIT",
-     "type": "BUILD",
-     "build_system": "GNU Make",
-     "stable_url": "https://github.com/curl/curl.git",
-     "build_line": "stable"
-   })
-
-3. Build project:
-   zopen_build({
-     "directory": "./curlport",
-     "verbose": true
-   })
-
-4. If build fails, analyze and fix:
-   - Read error messages
-   - Update buildenv or source code
-   - Rebuild
-
-5. Verify:
-   zopen_info({"package": "curl"})
+#ifdef __MVS__
+__display_backtrace(2);
+#endif
 ```
 
-## Troubleshooting
+## Done Checklist
 
-**Q: "zopen-generate not found in PATH"**
-- Ensure zopen is properly installed and in PATH
-- Check zopen installation: `zopen_version`
+A port is done when all are true:
+1. `zopen-build` succeeds.
+2. Required dependencies are correctly mapped to exact zopen names.
+3. Source edits are captured in `patches/PR*.patch` after successful build.
+4. `buildenv` version + bump line are valid (`bump current/check`).
+5. `.gitignore` excludes extracted source directories.
+6. `patches/README.md` documents modifications and caveats.
+7. (Optional) repo/CI created and validated.
 
-**Q: Build hangs or takes too long**
-- Check build logs for infinite loops
-- Verify configure script is correct
+## Reference Commands
 
-**Q: "Directory does not exist" error**
-- Verify the project was generated successfully
-- Use correct path to the port directory (usually `<name>port`)
+```bash
+zopen-version
+zopen-generate --help
+zopen-build --help
+zopen-info --help
+zopen-query --help
+zopen-create-repo --help
+zopen-create-cicd-job --help
+```
 
-**Q: Dependencies not found**
-- Download and inspect https://raw.githubusercontent.com/zopencommunity/meta/refs/heads/main/docs/api/zopen_releases_latest.json | jq -r '.release_data | keys[]' for all zopen available packages
-- Use the EXACT package name from this list (e.g., `check_python` not `python`, `check_go` not `go`)
-- Add to stable_deps using the exact names 
+## Reference URLs
 
-**Q: Project information is not found through brew. What should I do**
-- Do a web search for the project. But always check brew first.
-
-**Q. The project requires additional compiler options or macros to pass**
-- Macros can be passed with the addition of ZOPEN_EXTRA_CPPFLAGS="-DLOCALEDIR=NULL" in the buildenv, where in this case LOCALEDIR macro is set to NULL
-- Additional compiler options can be passed via the addition of ZOPEN_EXTRA_CFLAGS or ZOPEN_EXTRA_CXXFLAGS or both
-
-
-## Additional Resources
-
-- Use `zopen_generate_help` for detailed parameter information
-
-## Summary
-
-The key to successful porting:
-1. ✅ Gather accurate project information. Use the tools provided. Do not search the web.
-2. ✅ Use valid metadata (query the list tools)
-3. ✅ Generate the project structure
-4. ✅ Build and iterate on failures
-5. ✅ Test thoroughly
-
-Follow this workflow systematically, and you'll be able to port most open-source software to z/OS efficiently.
+- zopen releases index: `https://raw.githubusercontent.com/zopencommunity/meta/refs/heads/main/docs/api/zopen_releases_latest.json`
+- Homebrew formula JSON: `https://formulae.brew.sh/api/formula/${PROJECT}.json`
+- Homebrew core formula source: `https://raw.githubusercontent.com/Homebrew/homebrew-core/refs/heads/main/{ruby_source_path}`
+- bump tool: `https://github.com/wader/bump`
+- zoslib: `https://github.com/ibmruntimes/zoslib/tree/zopen2`
