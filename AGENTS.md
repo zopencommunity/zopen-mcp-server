@@ -23,7 +23,7 @@ Before starting, collect the following information about the project, here on ou
 3. **Repository URL** (GitHub or other git repository)
 4. **License** (SPDX identifier). Call zopen_generate_list_licenses to see all valid license identifiers
 5. **Categories** Call zopen_generate_list_categories to see all valid categories
-6. **Build System** Call zopen_generate_list_build_systems to see all valid build systems
+6. **Build System** Call zopen_generate_list_build_systems to see all valid build systems. 
 
 **Action**: Use `zopen_generate_list_licenses`, `zopen_generate_list_categories`, and `zopen_generate_list_build_systems` to get valid options. Use the brew json information to get the additional data such as source location.
 
@@ -50,10 +50,10 @@ Follow the advice provided. Do not use web search.
 - `categories`: Space-delimited categories.  This is from the information collected from Step 1.
 - `license`: SPDX license identifier (or "unknown"). This is from the information collected from Step 1.
 - `type`: "BUILD" (build from source) or "BARE" (binary download). If there is a build system used, go with BUILD
-- `build_system`: The build system used (e.g., "GNU Make"). This is from the information collected from Step 1. For example for curl, the build deps are in curl https://formulae.brew.sh/api/formula/${PROJECT}.json, where PROJECT is the PROJECT name.
+- `build_system`: The build system used. This is from the information collected from Step 1. For example for curl, the build deps are in curl https://formulae.brew.sh/api/formula/${PROJECT}.json, where PROJECT is the PROJECT name. IMPORTANT: If the project is Go based, pass "Go" instead of "GNU Make" as the build system because go build and go install can be used.
 - `stable_url`: This is the download url. It can be a tarball or a git repo. You can find this information from brew. For example for curl, the build deps are in curl https://formulae.brew.sh/api/formula/${PROJECT}.json, where PROJECT is the PROJECT name. 
 - `build_line`: "stable" or "dev". If unknown, start with "stable".
-- `stable_deps`: Space-delimited list of dependencies. You can find this information from brew. For example for curl, the build deps are in curl https://formulae.brew.sh/api/formula/${PROJECT}.json, where PROJECT is the PROJECT name.
+- `stable_deps`: Space-delimited list of dependencies. You can find this information from brew. For example for curl, the build deps are in curl https://formulae.brew.sh/api/formula/${PROJECT}.json, where PROJECT is the PROJECT name. If cmake is specified, add make as well.
 
   **IMPORTANT:** You MUST use the EXACT package names from zopen_releases_latest.json. Download and query https://raw.githubusercontent.com/zopencommunity/meta/refs/heads/main/docs/api/zopen_releases_latest.json | jq -r '.release_data | keys[]' to get all available package names.
 
@@ -129,6 +129,7 @@ Apply changes to this source code directly. Do not create patches in the patches
    - **Solution**: Determine the underlying library that provides the dependencies and check if it is a dependency in buildenv file.
    - Query https://raw.githubusercontent.com/zopencommunity/meta/refs/heads/main/docs/api/zopen_releases_latest.json for available packages and use the EXACT package name (e.g., `check_python` not `python`)
    - If it's a c runtime library missing header or function, add it to the zoslib library. 
+   - If flex is needed, then also add m4 as a dependency right before flex.
 
 3. **EBCDIC/ASCII Issues**
    - **Symptom**: Character encoding errors
@@ -141,6 +142,10 @@ Apply changes to this source code directly. Do not create patches in the patches
 5. **Build System Issues**
    - **Symptom**: Make/CMake errors
    - **Solution**: Customize build flags in buildenv. Use the `zopen_build_help` tool to find out the flags available.
+
+6. **Missing functions**
+   - If a function like alphasort is missing, then implement it in the source code. Create patches at the end
+   - If O_NOFOLLOW or similar are missing, pass `-D__XPLAT` to the ZOPEN_EXTRA_CPPFLAGS in the buildenv. You will need to build `zopen_build` with force true.
 
 6. **Go Dependency Issues**
    - **Symptom**: Go dependency compilation errors, missing symbols, platform-specific code in dependencies, CGO-related failures
